@@ -1,0 +1,231 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════
+   DARK THEME (default) — Red, White & Blue / Dark Navy
+   ═══════════════════════════════════════════════════ */
+:root {
+  /* Primary — Patriotic Blue accent */
+  --vault-gold: #4A90D9;
+  --vault-gold-light: #5BA0E8;
+  --vault-gold-gradient: linear-gradient(135deg, #4A90D9, #5BA0E8);
+  
+  /* Backgrounds — Deep Navy */
+  --vault-black: #111D33;
+  --vault-black-deep: #0B1426;
+  --vault-surface: #142238;
+  --vault-surface-elevated: #1C2D47;
+  
+  /* Accent — USA Red */
+  --vault-red: #CC0000;
+  --vault-red-hover: #E60000;
+  
+  /* Text */
+  --vault-text-light: #FFFFFF;
+  --vault-text-on-gold: #FFFFFF;
+  --vault-text-muted: #8B9DB7;
+
+  /* Themed semantic tokens */
+  --vault-bg: #0B1426;
+  --vault-text-primary: #FFFFFF;
+  --vault-text-secondary: #8B9DB7;
+  --vault-border: rgba(74, 144, 217, 0.15);
+  --vault-border-accent: rgba(204, 0, 0, 0.25);
+  --vault-card-bg: #1C2D47;
+  --vault-card-border: rgba(74, 144, 217, 0.12);
+  --vault-nav-bg: rgba(11, 20, 38, 0.97);
+  --vault-input-bg: #142238;
+  --vault-input-border: rgba(74, 144, 217, 0.2);
+  --vault-hover-overlay: rgba(74, 144, 217, 0.06);
+  --vault-shadow-color: rgba(0, 0, 0, 0.4);
+  --vault-map-filter: invert(90%) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  
+  /* Semantic */
+  --vault-success: #2ECC71;
+  --vault-warning: #F39C12;
+  --vault-danger: #CC0000;
+  --vault-info: #4A90D9;
+
+  /* ── shadcn/ui CSS Variables (dark) ── */
+  --background: 220 55.1% 9.6%;
+  --foreground: 0 0% 100%;
+  --card: 216.3 43.4% 19.4%;
+  --card-foreground: 0 0% 100%;
+  --popover: 216.3 43.4% 19.4%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 210.6 65.3% 57.1%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 216.7 47.4% 14.9%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 216.7 47.4% 14.9%;
+  --muted-foreground: 215.5 23.4% 63.1%;
+  --accent: 216.3 43.4% 19.4%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 100% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 216.7 40% 20%;
+  --input: 216.7 40% 22%;
+  --ring: 210.6 65.3% 57.1%;
+  --radius: 0.75rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   LIGHT THEME — Red, White & Blue / Clean Patriotic
+   ═══════════════════════════════════════════════════ */
+.light {
+  /* Primary — Deeper blue for contrast on light */
+  --vault-gold: #1B4D8E;
+  --vault-gold-light: #2A6AB5;
+  --vault-gold-gradient: linear-gradient(135deg, #1B4D8E, #2A6AB5);
+
+  /* Backgrounds — clean, cool whites */
+  --vault-black: #F0F3F8;
+  --vault-black-deep: #F8FAFB;
+  --vault-surface: #E8ECF2;
+  --vault-surface-elevated: #DDE3ED;
+  
+  /* Accent — Classic red */
+  --vault-red: #B80000;
+  --vault-red-hover: #CC0000;
+  
+  /* Text — dark navy for readability */
+  --vault-text-light: #0A1628;
+  --vault-text-on-gold: #FFFFFF;
+  --vault-text-muted: #3D5070;
+
+  /* Themed semantic tokens */
+  --vault-bg: #F8FAFB;
+  --vault-text-primary: #0A1628;
+  --vault-text-secondary: #3D5070;
+  --vault-border: rgba(27, 77, 142, 0.2);
+  --vault-border-accent: rgba(184, 0, 0, 0.2);
+  --vault-card-bg: #FFFFFF;
+  --vault-card-border: rgba(27, 77, 142, 0.15);
+  --vault-nav-bg: rgba(248, 250, 251, 0.97);
+  --vault-input-bg: #FFFFFF;
+  --vault-input-border: rgba(27, 77, 142, 0.25);
+  --vault-hover-overlay: rgba(27, 77, 142, 0.06);
+  --vault-shadow-color: rgba(10, 22, 40, 0.1);
+  --vault-map-filter: none;
+
+  /* Semantic */
+  --vault-success: #1A9850;
+  --vault-warning: #B8710A;
+  --vault-danger: #B80000;
+  --vault-info: #1B4D8E;
+
+  /* ── shadcn/ui CSS Variables (light) ── */
+  --background: 200 27.3% 97.8%;
+  --foreground: 216 60% 9.8%;
+  --card: 0 0% 100%;
+  --card-foreground: 216 60% 9.8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 216 60% 9.8%;
+  --primary: 213.9 68% 33.1%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 216 27.8% 92.9%;
+  --secondary-foreground: 216 60% 9.8%;
+  --muted: 216 27.8% 92.9%;
+  --muted-foreground: 217.6 29.5% 33.9%;
+  --accent: 217.5 30.8% 89.8%;
+  --accent-foreground: 216 60% 9.8%;
+  --destructive: 0 100% 36.1%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217.5 24% 85%;
+  --input: 218 30% 81%;
+  --ring: 213.9 68% 33.1%;
+}
+
+@layer base {
+  * {
+    @apply border-vault-surface;
+  }
+  body {
+    @apply bg-vault-black-deep text-vault-text-light font-body antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    position: relative;
+  }
+  
+  /* Subtle paper/grain texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.015;
+    background-image: 
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px),
+      repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    background-size: 100px 100px;
+  }
+  
+  /* Stronger texture in light mode */
+  .light body::before {
+    opacity: 0.025;
+    background-image: 
+      repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(27,77,142,0.06) 1px, rgba(27,77,142,0.06) 2px),
+      repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(27,77,142,0.06) 1px, rgba(27,77,142,0.06) 2px);
+    background-size: 60px 60px;
+  }
+  
+  /* Ensure content is above texture */
+  body > * {
+    position: relative;
+    z-index: 1;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .gold-gradient {
+    background: var(--vault-gold-gradient);
+  }
+
+  .red-gradient {
+    background: linear-gradient(135deg, var(--vault-red), var(--vault-red-hover));
+  }
+
+  .blue-gradient {
+    background: linear-gradient(135deg, #1B4D8E, #4A90D9);
+  }
+  
+  .gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--vault-gold) 0%,
+      var(--vault-gold-light) 50%,
+      var(--vault-gold) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  /* Theme transition helper */
+  .theme-transition {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+}

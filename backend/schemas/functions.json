@@ -1,0 +1,101 @@
+[
+  {
+    "name": "appraise_item",
+    "description": "Analyze an uploaded item image and description to estimate pawn value using visual cues and live spot prices.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "photo_url": { "type": "string", "description": "Publicly accessible image URL for the item." },
+        "description": { "type": "string", "description": "Customer-provided item details." },
+        "category": { "type": "string", "description": "Item category such as jewelry, electronics, firearm, tool, musical instrument, collectible, sporting good." }
+      },
+      "required": ["photo_url", "category"]
+    }
+  },
+  {
+    "name": "schedule_visit",
+    "description": "Book an in-store appointment and send SMS confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "customer_name": { "type": "string", "description": "Customer full name." },
+        "phone": { "type": "string", "description": "Customer phone number in E.164 or US local format." },
+        "preferred_time": { "type": "string", "description": "Requested appointment time/date." },
+        "item_description": { "type": "string", "description": "Brief summary of the item to appraise." }
+      },
+      "required": ["customer_name", "phone", "preferred_time"]
+    }
+  },
+  {
+    "name": "check_inventory",
+    "description": "Search inventory by category and keyword.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "description": "Inventory category filter." },
+        "keyword": { "type": "string", "description": "Search keyword to match brand/description." }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "get_gold_spot_price",
+    "description": "Fetch current precious metals spot prices per ounce.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "metals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional list of metals to return, e.g. gold, silver, platinum."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "log_lead",
+    "description": "Log a lead interaction from web chat, SMS, voice, or appraisal flow.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "Lead source channel: web, sms, voice, qr, appraise." },
+        "customer_info": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "phone": { "type": "string" }
+          },
+          "required": []
+        },
+        "item_interest": { "type": "string", "description": "Item or category customer is interested in." },
+        "estimated_value": { "type": "number", "description": "Estimated dollar value if available." }
+      },
+      "required": ["source"]
+    }
+  },
+  {
+    "name": "check_store_status",
+    "description": "Return whether the store is open right now and when it opens next.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "description": "Optional ISO timestamp to evaluate status at a specific time." }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "escalate_to_staff",
+    "description": "Escalate high-value or sensitive customer interactions to staff/owner.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": { "type": "string", "description": "Reason for escalation." },
+        "estimated_value": { "type": "number", "description": "Estimated item value in USD." },
+        "priority": { "type": "string", "description": "Priority level: low, medium, high, urgent." }
+      },
+      "required": ["reason"]
+    }
+  }
+]

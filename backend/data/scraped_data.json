@@ -1,0 +1,223 @@
+{
+  "source": "https://usapawnfl.com",
+  "scrape_status": "live",
+  "pages_checked": {
+    "/": {
+      "url": "https://usapawnfl.com/",
+      "status_code": 200,
+      "ok": true
+    },
+    "/products": {
+      "url": "https://usapawnfl.com/products",
+      "status_code": 404,
+      "ok": false
+    },
+    "/products-2": {
+      "url": "https://usapawnfl.com/products-2",
+      "status_code": 404,
+      "ok": false
+    },
+    "/products-3": {
+      "url": "https://usapawnfl.com/products-3",
+      "status_code": 404,
+      "ok": false
+    },
+    "/products-4": {
+      "url": "https://usapawnfl.com/products-4",
+      "status_code": 404,
+      "ok": false
+    },
+    "/info": {
+      "url": "https://usapawnfl.com/info",
+      "status_code": 404,
+      "ok": false
+    },
+    "/gallery": {
+      "url": "https://usapawnfl.com/gallery",
+      "status_code": 404,
+      "ok": false
+    },
+    "/gold-contact": {
+      "url": "https://usapawnfl.com/gold-contact",
+      "status_code": 404,
+      "ok": false
+    },
+    "/contact": {
+      "url": "https://usapawnfl.com/contact",
+      "status_code": 404,
+      "ok": false
+    }
+  },
+  "store_info": {
+    "name": "USA Pawn Holdings",
+    "address": "6132 Merrill Rd Ste 1, Jacksonville, FL 32277",
+    "phone": "(904) 744-5611",
+    "hours": {
+      "monday": "9:00 AM - 6:00 PM",
+      "tuesday": "9:00 AM - 6:00 PM",
+      "wednesday": "9:00 AM - 6:00 PM",
+      "thursday": "9:00 AM - 6:00 PM",
+      "friday": "9:00 AM - 6:00 PM",
+      "saturday": "9:00 AM - 5:00 PM",
+      "sunday": "Closed"
+    },
+    "coordinates": {
+      "lat": "30.3368",
+      "lng": "-81.5897"
+    }
+  },
+  "inventory": [
+    {
+      "category": "Jewelry",
+      "brands": [
+        "Rolex",
+        "Cartier",
+        "Tiffany & Co."
+      ],
+      "description": "Designer watches, diamond rings, gold chains",
+      "estimated_value_range": "$500 - $50,000",
+      "savings_percentage": "50-70% off retail",
+      "image": "/images/jewelry.jpg"
+    },
+    {
+      "category": "Firearms",
+      "brands": [
+        "Glock",
+        "Smith & Wesson",
+        "Ruger"
+      ],
+      "description": "Pistols, rifles, shotguns and accessories",
+      "estimated_value_range": "$250 - $2,500",
+      "savings_percentage": "20-40% off retail",
+      "image": "/images/firearms.jpg"
+    },
+    {
+      "category": "Electronics",
+      "brands": [
+        "Apple",
+        "Samsung",
+        "Sony"
+      ],
+      "description": "Phones, laptops, TVs, gaming systems",
+      "estimated_value_range": "$75 - $2,000",
+      "savings_percentage": "30-60% off retail",
+      "image": "/images/electronics.jpg"
+    },
+    {
+      "category": "Tools",
+      "brands": [
+        "DeWalt",
+        "Milwaukee",
+        "Makita"
+      ],
+      "description": "Power tools, compressors, mechanic sets",
+      "estimated_value_range": "$40 - $1,200",
+      "savings_percentage": "35-60% off retail",
+      "image": "/images/tools.jpg"
+    },
+    {
+      "category": "Musical Instruments",
+      "brands": [
+        "Fender",
+        "Gibson",
+        "Yamaha"
+      ],
+      "description": "Guitars, keyboards, pro audio gear",
+      "estimated_value_range": "$100 - $5,000",
+      "savings_percentage": "25-50% off retail",
+      "image": "/images/musical-instruments.jpg"
+    },
+    {
+      "category": "Collectibles",
+      "brands": [
+        "Funko",
+        "Pokemon",
+        "Marvel"
+      ],
+      "description": "Cards, memorabilia, rare collectibles",
+      "estimated_value_range": "$20 - $10,000",
+      "savings_percentage": "varies",
+      "image": "/images/collectibles.jpg"
+    },
+    {
+      "category": "Sporting Goods",
+      "brands": [
+        "Rawlings",
+        "Wilson",
+        "Nike"
+      ],
+      "description": "Fitness equipment, bikes, outdoor gear",
+      "estimated_value_range": "$30 - $1,500",
+      "savings_percentage": "20-50% off retail",
+      "image": "/images/sporting-goods.jpg"
+    }
+  ],
+  "loan_terms": {
+    "interest_rate": "25%",
+    "term_days": 30,
+    "loan_to_value": "25-33%"
+  },
+  "specials": [
+    {
+      "title": "Video Game Bundles",
+      "description": "Save up to $50 when you buy game consoles with 3+ games"
+    },
+    {
+      "title": "Gold & Silver Buying",
+      "description": "Top-dollar payouts for gold, silver, and platinum"
+    }
+  ],
+  "images": {
+    "store_photos": [
+      "pic1.jpg",
+      "pic2.jpg",
+      "pic3.jpg",
+      "pic4.jpg",
+      "pic5.jpg",
+      "pic6.jpg",
+      "pic7.jpg"
+    ],
+    "logo": "usapawn_logo.png",
+    "downloaded": [
+      "Photogallerypic.jpg",
+      "amazon_banner.gif",
+      "wp055bdd8a_06.png",
+      "wp0dd2faed_06.png",
+      "wp18469185_06.png",
+      "wp1hjk76a4_06.png",
+      "wp23821a5f_06.png",
+      "wp2581c6e1_06.png",
+      "wp2c3fe551_06.png",
+      "wp31abfe16_06.png",
+      "wp4096c08e_06.png",
+      "wp57172244_06.png",
+      "wp5a7244b5_06.png",
+      "wp6390e4fd_06.png",
+      "wp6812c3d4_06.png",
+      "wp6a7bef4d_06.png",
+      "wp6b494b7f_06.png",
+      "wp78c06941_06.png",
+      "wp8e466371_06.png",
+      "wp9a8456j5_06.png",
+      "wpa218450a_06.png",
+      "wpcc2051a2_06.png",
+      "wpe361291c_06.png",
+      "wpe99c5979_06.png",
+      "wpf6b1bda6_06.png",
+      "wpf7a23274_06.png",
+      "wpr6e68912_08.png"
+    ]
+  },
+  "youtube_videos": [
+    "https://www.youtube.com/embed/I490ebRtWEc?rel=0"
+  ],
+  "categories": [
+    "Jewelry",
+    "Firearms",
+    "Electronics",
+    "Tools",
+    "Musical Instruments",
+    "Collectibles",
+    "Sporting Goods"
+  ]
+}
