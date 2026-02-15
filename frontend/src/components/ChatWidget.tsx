@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import ScheduleFormModal from './ScheduleFormModal';
 
 type Message = {
   id: number;
@@ -28,6 +29,8 @@ export default function ChatWidget() {
   const [isMobile, setIsMobile] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +91,20 @@ export default function ChatWidget() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [expanded, isLoading]);
+
+  // Detect if assistant response mentions scheduling/visit and show form
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && !isStreaming) {
+      const content = lastMsg.content.toLowerCase();
+      const schedulingKeywords = ['schedule', 'visit', 'appointment', 'available', 'when', 'time', 'contact'];
+      const shouldShowForm = schedulingKeywords.some((keyword) => content.includes(keyword));
+
+      if (shouldShowForm && !showScheduleForm) {
+        setShowScheduleForm(true);
+      }
+    }
+  }, [messages, isStreaming, showScheduleForm]);
 
   const sendMessage = useCallback(async (content: string, imageUrl?: string) => {
     if (!content.trim() && !imageUrl) return;
@@ -214,6 +231,52 @@ export default function ChatWidget() {
     }
   };
 
+  const handleScheduleSubmit = async (data: { name: string; phone: string; preferredTime: string }) => {
+    setIsSubmittingForm(true);
+    try {
+      // Submit to schedule endpoint
+      const response = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          phone: data.phone,
+          preferredTime: data.preferredTime,
+          conversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to schedule visit');
+      }
+
+      // Send confirmation message to chat
+      const confirmationMsg = `Great! I've scheduled your visit for ${data.preferredTime}. I'll send you an SMS confirmation at ${data.phone} with directions and more details.`;
+      sendMessage(confirmationMsg);
+
+      // Close form
+      setShowScheduleForm(false);
+    } catch (error) {
+      console.error('Schedule submission error:', error);
+      // Send error message to chat
+      sendMessage(
+        "I had trouble scheduling your visit. Please call us at (904) 641-7296 to book an appointment."
+      );
+      setShowScheduleForm(false);
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
+
+  const handleRestartChat = () => {
+    // Clear conversation
+    setMessages([WELCOME_MESSAGE]);
+    setInput('');
+    setConversationId(null);
+    localStorage.removeItem('vault_conversation_id');
+    setShowScheduleForm(false);
+  };
+
   // Collapsed bubble
   if (!expanded) {
     return (
@@ -250,17 +313,31 @@ export default function ChatWidget() {
             <span className="block text-xs opacity-70">Your Smart Pawn Assistant</span>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setExpanded(false)}
-          className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
-          aria-label="Close chat"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRestartChat}
+            className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
+            aria-label="Restart chat"
+            title="Start a new conversation"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setExpanded(false)}
+            className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
+            aria-label="Close chat"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -376,6 +453,14 @@ export default function ChatWidget() {
           </svg>
         </Button>
       </form>
+
+      {/* Schedule Form Modal */}
+      <ScheduleFormModal
+        isOpen={showScheduleForm}
+        onClose={() => setShowScheduleForm(false)}
+        onSubmit={handleScheduleSubmit}
+        isLoading={isSubmittingForm}
+      />
     </div>
   );
 }
