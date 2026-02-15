@@ -4,13 +4,28 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import ScheduleFormModal from './ScheduleFormModal';
+import DynamicFormPanel from './DynamicFormPanel';
+
+type FormSpec = {
+  title: string;
+  description?: string;
+  fields: Array<{
+    name: string;
+    label: string;
+    type: 'text' | 'tel' | 'email' | 'select' | 'textarea';
+    placeholder?: string;
+    required?: boolean;
+    options?: string[];
+  }>;
+  submitLabel?: string;
+};
 
 type Message = {
   id: number;
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
+  formSpec?: FormSpec;
 };
 
 const QUICK_REPLIES = ['Get Appraisal', 'Check Hours', 'Schedule Visit', 'Start Ticket'];
@@ -29,8 +44,7 @@ export default function ChatWidget() {
   const [isMobile, setIsMobile] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [activeForm, setActiveForm] = useState<FormSpec | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,20 +105,6 @@ export default function ChatWidget() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [expanded, isLoading]);
-
-  // Detect if assistant response mentions scheduling/visit and show form
-  useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && !isStreaming) {
-      const content = lastMsg.content.toLowerCase();
-      const schedulingKeywords = ['schedule', 'visit', 'appointment', 'available', 'when', 'time', 'contact'];
-      const shouldShowForm = schedulingKeywords.some((keyword) => content.includes(keyword));
-
-      if (shouldShowForm && !showScheduleForm) {
-        setShowScheduleForm(true);
-      }
-    }
-  }, [messages, isStreaming, showScheduleForm]);
 
   const sendMessage = useCallback(async (content: string, imageUrl?: string) => {
     if (!content.trim() && !imageUrl) return;
@@ -189,6 +189,30 @@ export default function ChatWidget() {
           return updated;
         });
       }
+
+      // After streaming, check if response contains a form request
+      try {
+        // Try to parse as JSON to detect form requests
+        const parsed = JSON.parse(accumulatedContent);
+        if (parsed.__form_request && parsed.form_spec) {
+          // Store form spec and update message to indicate form is shown
+          setActiveForm(parsed.form_spec as FormSpec);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx]?.id === assistantMsgId) {
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                content: parsed.form_spec.description || 'Please fill out the form below:',
+                formSpec: parsed.form_spec as FormSpec,
+              };
+            }
+            return updated;
+          });
+        }
+      } catch {
+        // Not JSON, treat as regular text message (already handled)
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -231,50 +255,19 @@ export default function ChatWidget() {
     }
   };
 
-  const handleScheduleSubmit = async (data: { name: string; phone: string; preferredTime: string }) => {
-    setIsSubmittingForm(true);
-    try {
-      // Submit to schedule endpoint
-      const response = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          phone: data.phone,
-          preferredTime: data.preferredTime,
-          conversationId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to schedule visit');
-      }
-
-      // Send confirmation message to chat
-      const confirmationMsg = `Great! I've scheduled your visit for ${data.preferredTime}. I'll send you an SMS confirmation at ${data.phone} with directions and more details.`;
-      sendMessage(confirmationMsg);
-
-      // Close form
-      setShowScheduleForm(false);
-    } catch (error) {
-      console.error('Schedule submission error:', error);
-      // Send error message to chat
-      sendMessage(
-        "I had trouble scheduling your visit. Please call us at (904) 641-7296 to book an appointment."
-      );
-      setShowScheduleForm(false);
-    } finally {
-      setIsSubmittingForm(false);
-    }
+  const handleFormSubmit = (data: Record<string, string>) => {
+    // Format the form data as a user message
+    const formattedData = Object.entries(data)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n');
+    
+    sendMessage(`Form submitted:\n${formattedData}`);
+    setActiveForm(null);
   };
 
-  const handleRestartChat = () => {
-    // Clear conversation
-    setMessages([WELCOME_MESSAGE]);
-    setInput('');
-    setConversationId(null);
-    localStorage.removeItem('vault_conversation_id');
-    setShowScheduleForm(false);
+  const handleFormCancel = () => {
+    setActiveForm(null);
+    sendMessage('Form cancelled');
   };
 
   // Collapsed bubble
@@ -313,31 +306,17 @@ export default function ChatWidget() {
             <span className="block text-xs opacity-70">Your Smart Pawn Assistant</span>
           </div>
         </div>
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRestartChat}
-            className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
-            aria-label="Restart chat"
-            title="Start a new conversation"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setExpanded(false)}
-            className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
-            aria-label="Close chat"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setExpanded(false)}
+          className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
+          aria-label="Close chat"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </Button>
       </div>
 
       {/* Messages */}
@@ -385,6 +364,15 @@ export default function ChatWidget() {
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
+
+      {/* Dynamic Form Panel */}
+      {activeForm && (
+        <DynamicFormPanel
+          formSpec={activeForm}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+        />
+      )}
 
       {/* Quick Replies */}
       {messages.length <= 2 && !isStreaming && (
@@ -453,14 +441,6 @@ export default function ChatWidget() {
           </svg>
         </Button>
       </form>
-
-      {/* Schedule Form Modal */}
-      <ScheduleFormModal
-        isOpen={showScheduleForm}
-        onClose={() => setShowScheduleForm(false)}
-        onSubmit={handleScheduleSubmit}
-        isLoading={isSubmittingForm}
-      />
     </div>
   );
 }

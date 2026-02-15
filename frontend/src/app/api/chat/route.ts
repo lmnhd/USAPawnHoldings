@@ -159,6 +159,19 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
       return { success: true, escalated: true, lead_id: leadId };
     }
 
+    case "request_form": {
+      // Return the form specification exactly as provided - frontend will render it
+      return {
+        __form_request: true,
+        form_spec: {
+          title: String(args.title ?? "Please Fill Out"),
+          description: args.description ? String(args.description) : undefined,
+          fields: Array.isArray(args.fields) ? args.fields : [],
+          submitLabel: args.submitLabel ? String(args.submitLabel) : undefined,
+        },
+      };
+    }
+
     default:
       return { error: `Unsupported function: ${toolCall.function.name}` };
   }

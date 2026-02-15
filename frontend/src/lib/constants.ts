@@ -50,13 +50,22 @@ What You Can Do:
 - Check inventory
 - Loan info (25% interest, 30 days, usually 25-33% of resale value)
 - Spot prices (gold/silver/platinum)
+- Request structured forms for multi-field input (name, phone, time, etc.)
+
+STRUCTURED FORMS:
+- When you need to collect multiple pieces of information (like name AND phone AND preferred time), use the request_form tool
+- This displays a clean form interface instead of asking multiple questions one at a time
+- Example: If user wants to schedule a visit, call request_form with fields for name, phone, and preferred_time
+- The form data will be returned to you automatically once they submit
+- Use forms for ANY situation requiring 2+ related inputs
 
 Rules:
 - ALWAYS use function tools when applicable
 - NEVER invent prices — use spot price API + weight estimate
 - Escalate items >$500 to staff
 - Be upfront about loan terms
-- If user wants multi-photo appraisal, point them to /appraise`;
+- If user wants multi-photo appraisal, point them to /appraise
+- When collecting multiple data points, prefer request_form over sequential questions`;
 
 type FunctionTool = {
   name: string;

@@ -97,5 +97,38 @@
       },
       "required": ["reason"]
     }
+  },
+  {
+    "name": "request_form",
+    "description": "Display a structured form to the user for collecting multiple pieces of information at once. Use this when you need to gather several related fields (name, phone, time, etc.) instead of asking multiple separate questions.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Form title shown to user, e.g. 'Schedule Your Visit'" },
+        "description": { "type": "string", "description": "Brief explanation of what the form is for" },
+        "fields": {
+          "type": "array",
+          "description": "Array of form fields to display",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "Field identifier (e.g. 'customer_name')" },
+              "label": { "type": "string", "description": "User-facing label (e.g. 'Full Name')" },
+              "type": { "type": "string", "enum": ["text", "tel", "email", "select", "textarea"], "description": "Input type" },
+              "placeholder": { "type": "string", "description": "Placeholder text" },
+              "required": { "type": "boolean", "description": "Whether field is required" },
+              "options": { 
+                "type": "array", 
+                "items": { "type": "string" },
+                "description": "Options for select fields" 
+              }
+            },
+            "required": ["name", "label", "type"]
+          }
+        },
+        "submitLabel": { "type": "string", "description": "Submit button text, default 'Submit'" }
+      },
+      "required": ["title", "fields"]
+    }
   }
 ]
