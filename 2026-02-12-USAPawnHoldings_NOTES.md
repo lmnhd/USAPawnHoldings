@@ -11,7 +11,7 @@ How about a system for entering new items into inventory using a phone, take ima
  - Allow customers to create tickets online (during appraisals) for faster processing when they come in.
  - A system to help speed up staff members when researching and processing merch. Auto updated in inventory online!
 
- - You probably already have multiple networks or systems in place for your everyday business, we can incorporate any or all of them into 1 unified system!
+ - You probably already have multiple networks or systems in place for your everyday business, we can incorporate any or all of them into 1 unified system! Even your paid services like CRM's and Social Media Management.
 
  - System to 'Auto-Post' new items on social media
 
