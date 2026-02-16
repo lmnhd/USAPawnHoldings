@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Twilio Voice Webhook — returns TwiML that connects the caller
- * to the OpenAI Realtime API via the App Runner WebSocket server.
+ * to the OpenAI Realtime API via the Render-hosted WebSocket server.
  *
  * The voice server URL is configured via VOICE_SERVER_URL env var.
- * This should point to your App Runner deployment, e.g.:
- *   https://usapawn-voice.us-east-1.awsapprunner.com
+ * This should point to your Render deployment, e.g.:
+ *   https://usapawn-voice.onrender.com
  *
  * Twilio calls this endpoint when someone dials the Twilio number.
  * The TwiML <Connect><Stream> starts a bidirectional Media Stream
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
     const fallback = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Amy">
-    Thanks for calling USA Pawn Holdings. We're currently closed.
-    Our hours are Monday through Friday, 9 AM to 6 PM, and Saturday 9 AM to 5 PM.
+    Thanks for calling USA Pawn Holdings. Our AI phone assistant is temporarily unavailable.
+    Our store hours are Monday through Friday, 9 AM to 6 PM, and Saturday 9 AM to 5 PM Eastern Time.
     You can also text us a photo of any item for an instant AI appraisal.
     Have a great day!
   </Say>

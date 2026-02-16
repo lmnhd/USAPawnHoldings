@@ -6,6 +6,7 @@ import { TABLES, putItem, scanItems } from "@/lib/dynamodb";
 import { ChatMessage, createChatCompletion } from "@/lib/openai";
 import { sendSMS } from "@/lib/twilio";
 import { getAgentConfigBatch } from "@/lib/agent-config";
+import { getStoreStatusInEastern } from "@/lib/store-status";
 
 type ChatRequestBody = {
   messages: ChatMessage[];
@@ -39,24 +40,7 @@ function streamTextResponse(text: string): Response {
 }
 
 function getStoreStatus() {
-  const now = new Date();
-  const weekday = now.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-  const schedule = STORE_HOURS[weekday as keyof typeof STORE_HOURS] ?? "Closed";
-
-  if (schedule.toLowerCase() === "closed") {
-    return { open: false, message: "Store is currently closed." };
-  }
-
-  const [openRaw, closeRaw] = schedule.split(" - ");
-  const today = now.toLocaleDateString("en-US");
-  const open = new Date(`${today} ${openRaw}`);
-  const close = new Date(`${today} ${closeRaw}`);
-  const isOpen = now >= open && now <= close;
-
-  return {
-    open: isOpen,
-    message: isOpen ? `We are open now until ${closeRaw}.` : `We are currently closed and open at ${openRaw}.`,
-  };
+  return getStoreStatusInEastern(STORE_HOURS);
 }
 
 async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
@@ -418,7 +402,7 @@ export async function POST(req: NextRequest) {
     ];
 
     console.log(`\n✅ FINAL RESPONSE: "${finalText?.substring(0, 150)}${finalText && finalText.length > 150 ? '...' : ''}"`);
-    console.log(`${'='.repeat(70)}\n`);
+    console.log(`💾 SAVING conversation ${conversationId} with ${completeMessages.length} messages to DynamoDB`);
 
     await putItem(TABLES.conversations, {
       conversation_id: conversationId,
@@ -428,23 +412,16 @@ export async function POST(req: NextRequest) {
       ended_at: new Date().toISOString(),
       message_count: completeMessages.length,
     });
+    console.log(`✅ Conversation ${conversationId} saved successfully`);
+    console.log(`${'='.repeat(70)}\n`);
 
     const response = streamTextResponse(finalText || "How can I help you today?");
     response.headers.set("X-Conversation-ID", conversationId);
     return response;
   } catch (error) {
+    // Log error for debugging but don't save empty error conversations to DB
     console.error(`❌ ERROR in chat POST:`, error);
     console.log(`${'='.repeat(70)}\n`);
-    
-    await putItem(TABLES.conversations, {
-      conversation_id: conversationId,
-      channel: "web",
-      messages: [],
-      started_at: new Date().toISOString(),
-      ended_at: new Date().toISOString(),
-      error: "chat_processing_failed",
-      message_count: 0,
-    }).catch(() => undefined);
 
     const response = streamTextResponse(
       "I'm having trouble right now, but I can still help if you try again in a moment.",

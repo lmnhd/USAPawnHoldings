@@ -98,7 +98,7 @@ function ConversationCard({ conv, onExpand }: { conv: Conversation; onExpand: ()
 function ConversationDetail({ conv, onClose }: { conv: Conversation; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[80vh] flex flex-col bg-vault-black border-vault-gold/20">
+      <Card className="w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden bg-vault-black border-vault-gold/20">
         <CardHeader className="border-b border-vault-gold/10">
           <div className="flex justify-between items-start">
             <div>
@@ -112,7 +112,7 @@ function ConversationDetail({ conv, onClose }: { conv: Conversation; onClose: ()
             </Button>
           </div>
         </CardHeader>
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-4 space-y-4">
             {conv.messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -140,7 +140,7 @@ function ConversationDetail({ conv, onClose }: { conv: Conversation; onClose: ()
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </Card>
     </div>
   );
@@ -156,10 +156,15 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
     const fetchConversations = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/conversations');
+        const response = await fetch(`/api/conversations?_t=${Date.now()}`, {
+          cache: 'no-store'
+        });
         if (response.ok) {
           const data = (await response.json()) as { conversations: Conversation[] };
+          console.log('[Dashboard] Fetched conversations:', data.conversations.length, data.conversations);
           setConversations(data.conversations.slice(0, maxDisplay));
+        } else {
+          console.error('[Dashboard] Failed to fetch conversations:', response.status);
         }
       } catch (error) {
         console.error('Failed to fetch conversations:', error);

@@ -57,41 +57,11 @@ export default function ChatWidget() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Load conversation from localStorage on mount
+  // Load conversation from localStorage on mount - DISABLED to create new conversations each time
   useEffect(() => {
-    const loadConversation = async () => {
-      const savedId = localStorage.getItem('vault_conversation_id');
-      if (savedId) {
-        setConversationId(savedId);
-        setIsLoading(true);
-        try {
-          const response = await fetch(`/api/conversations/${savedId}`);
-          if (response.ok) {
-            const data = (await response.json()) as { conversation: { messages?: unknown[] } };
-            if (data.conversation?.messages && Array.isArray(data.conversation.messages)) {
-              // Restore messages from DB
-              const restored = data.conversation.messages.map((msg: unknown, idx: number) => {
-                const msgObj = msg as { role?: string; content?: string; image_url?: string };
-                return {
-                  id: idx,
-                  role: (msgObj.role ?? 'user') as 'user' | 'assistant',
-                  content: String(msgObj.content ?? ''),
-                  imageUrl: msgObj.image_url,
-                };
-              });
-              if (restored.length > 0) {
-                setMessages(restored);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to restore conversation:', error);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-    loadConversation();
+    // NOTE: We no longer restore previous conversations to ensure each chat
+    // creates a new entry in the dashboard history
+    setIsLoading(false);
   }, []);
 
   // Auto-scroll on new messages
@@ -144,7 +114,7 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: apiMessages,
-          conversationId,
+          // conversationId is NOT sent - backend generates new ID for each exchange
           stream: true,
         }),
       });
@@ -153,11 +123,10 @@ export default function ChatWidget() {
         throw new Error('Chat request failed');
       }
 
-      // Extract conversationId from response header
+      // Extract conversationId from response header - this is a NEW conversation
       const respConvId = response.headers.get('X-Conversation-ID');
-      if (respConvId && !conversationId) {
-        setConversationId(respConvId);
-        localStorage.setItem('vault_conversation_id', respConvId);
+      if (respConvId) {
+        console.log('[ChatWidget] New conversation created:', respConvId);
       }
 
       const reader = response.body?.getReader();

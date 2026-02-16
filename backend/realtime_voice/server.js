@@ -59,12 +59,13 @@ const VOICE_TOOLS = [
 // Falls back to a hardcoded default if API is unreachable.
 // ─────────────────────────────────────────────────────────────
 
-const FALLBACK_SYSTEM_MESSAGE = `You are Vault, the after-hours AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
+const FALLBACK_SYSTEM_MESSAGE = `You are Vault, the AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
 You are warm, friendly, and professional. Keep responses short — this is a phone call.
-Store hours: Mon-Fri 9 AM – 6 PM, Sat 9 AM – 5 PM, Closed Sunday.
+Store hours (Eastern Time): Mon-Fri 9 AM – 6 PM, Sat 9 AM – 5 PM, Closed Sunday.
 Address: 6132 Merrill Rd, Suite 1, Jacksonville, FL 32277.
 Phone: (904) 744-5611. Pawn terms: 25% interest, 30-day term.
 Tell callers they can text a photo to this number for an instant AI appraisal.
+Do not claim the store is closed unless current Eastern Time is outside store hours.
 Greet callers warmly. Take messages (name + number) if you can't help directly.`;
 
 let cachedConfig = {
@@ -300,8 +301,38 @@ const LOG_EVENT_TYPES = [
 const fastify = Fastify({ logger: true });
 await fastify.register(websocketPlugin);
 
-// Health check (App Runner pings this)
+// Health check (Render pings this)
 fastify.get("/", async () => ({ status: "ok", service: "usapawn-voice" }));
+
+// Warm-up + status probe endpoint
+fastify.get("/health/store-status", async () => {
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(`${FRONTEND_URL}/api/store-status`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    return {
+      status: response.ok ? "ok" : "degraded",
+      service: "usapawn-voice",
+      frontend_url: FRONTEND_URL,
+      latency_ms: Date.now() - startedAt,
+      store_status: payload,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      service: "usapawn-voice",
+      frontend_url: FRONTEND_URL,
+      latency_ms: Date.now() - startedAt,
+      message: "Failed to fetch store status from frontend API",
+      error: error?.message || String(error),
+    };
+  }
+});
 
 // Twilio calls this to get TwiML that starts the Media Stream
 fastify.all("/incoming-call", async (request, reply) => {
@@ -519,7 +550,7 @@ function sendInitialGreeting(openaiWs) {
       content: [
         {
           type: "input_text",
-          text: "Greet the caller warmly. You are answering the phone after hours.",
+          text: "Greet the caller warmly and help with their request.",
         },
       ],
     },

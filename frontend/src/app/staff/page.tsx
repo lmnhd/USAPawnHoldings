@@ -5,6 +5,7 @@ import StaffShiftView, { type ShiftData } from '@/components/StaffShiftView';
 import QueueManager, { type QueueItem } from '@/components/QueueManager';
 import ItemEntryForm from '@/components/ItemEntryForm';
 import StaffInventoryManager from '@/components/StaffInventoryManager';
+import PriceLookupTool from '@/components/PriceLookupTool';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [shiftLoading, setShiftLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(true);
+  const [showPriceLookup, setShowPriceLookup] = useState(false);
   const [showItemEntry, setShowItemEntry] = useState(false);
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [availableStaff, setAvailableStaff] = useState<Array<{ name: string; pin: string }>>([]);
@@ -299,7 +301,11 @@ export default function StaffPage() {
               icon="💰"
               label="Price Lookup"
               description="Check gold prices"
-              href="/inventory"
+              onClick={() => {
+                setShowPriceLookup(true);
+                setShowItemEntry(false);
+                setShowInventoryManager(false);
+              }}
             />
             <QuickActionCard
               icon="📋"
@@ -313,6 +319,26 @@ export default function StaffPage() {
             />
           </div>
         </div>
+
+        {/* Price Lookup Tool */}
+        {showPriceLookup && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display text-lg font-bold text-vault-text-light">
+                💰 Price Lookup
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPriceLookup(false)}
+                className="border-vault-gold/15 text-vault-text-light hover:bg-vault-hover-overlay"
+              >
+                Close
+              </Button>
+            </div>
+            <PriceLookupTool onClose={() => setShowPriceLookup(false)} />
+          </div>
+        )}
 
         {/* Item Entry Form */}
         {showItemEntry && (

@@ -19,7 +19,9 @@ type ConversationRecord = {
 
 export async function GET(req: NextRequest) {
   try {
+    console.log('[API /conversations] Fetching conversations from DynamoDB...');
     const conversations = await scanItems<Record<string, unknown>>(TABLES.conversations);
+    console.log('[API /conversations] Raw scan returned:', conversations.length, 'items');
 
     // Sort by started_at descending (newest first)
     const sorted = conversations.sort((a, b) => {
@@ -28,13 +30,18 @@ export async function GET(req: NextRequest) {
       return bTime - aTime;
     });
 
+    console.log('[API /conversations] Returning', sorted.length, 'conversations');
+    if (sorted.length > 0) {
+      console.log('[API /conversations] First conversation:', sorted[0].conversation_id, 'messages:', (sorted[0].messages as unknown[])?.length ?? 0);
+    }
+
     return NextResponse.json({
       success: true,
       count: sorted.length,
       conversations: sorted.slice(0, 100), // limit to 100 most recent
     });
   } catch (error) {
-    console.error("Failed to fetch conversations:", error);
+    console.error("[API /conversations] Failed to fetch conversations:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch conversations" },
       { status: 500 }
@@ -87,6 +94,9 @@ export async function POST(request: NextRequest) {
           ? (body.metadata as Record<string, unknown>)
           : undefined,
     };
+
+    console.log(`💾 SAVING to DynamoDB: conversation_id=${conversationId}, messages=${messages.length}`);
+    console.log(`${'='.repeat(70)}\n`);
 
     await putItem(TABLES.conversations, record);
 

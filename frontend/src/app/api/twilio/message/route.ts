@@ -64,7 +64,7 @@ async function logConversation(
         { role: "user", content: inbound, ...(mediaUrl ? { media_url: mediaUrl } : {}) },
         { role: "assistant", content: outbound },
       ],
-      timestamp: new Date().toISOString(),
+      started_at: new Date().toISOString(),
     });
   } catch (err) {
     console.error("[SMS] Failed to log conversation:", err);

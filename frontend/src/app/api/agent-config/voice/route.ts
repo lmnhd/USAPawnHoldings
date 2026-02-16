@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAgentConfig, getAgentConfigBatch } from "@/lib/agent-config";
+import { STORE_HOURS } from "@/lib/constants";
+import { getStoreStatusInEastern } from "@/lib/store-status";
 
 /* ──────────────────────────────────────────────────────
    GET /api/agent-config/voice
    
    Returns the fully-assembled voice agent system prompt.
-   Called by the App Runner voice server on each new call
+  Called by the deployed voice server on each new call
    (with 5-minute caching).
    
    Logic:
@@ -51,13 +53,24 @@ VOICE CHANNEL INSTRUCTIONS (you are on a phone call, not text chat):
 - If asked about something you can't help with, offer to take a message (name + number).
 
 GREETING (first thing you say):
-"Thanks for calling USA Pawn Holdings! We're currently closed, but I'm the after-hours AI assistant and I'd be happy to help. What can I do for you?"
+"Thanks for calling USA Pawn Holdings! I'm the AI assistant and I'd be happy to help. What can I do for you?"
 
 CLOSING:
 When wrapping up, say: "Thanks for calling! Remember, you can text a photo of any item to this number for an instant estimate. Have a great night!"`;
 
 export async function GET() {
   try {
+    const storeStatus = getStoreStatusInEastern(STORE_HOURS);
+    const statusContext = [
+      "REAL-TIME STORE STATUS (authoritative):",
+      `- Time zone: ${storeStatus.timezone}`,
+      `- Current local time: ${storeStatus.now_label}`,
+      `- Today's schedule: ${storeStatus.today_schedule}`,
+      `- Open now: ${storeStatus.open ? "Yes" : "No"}`,
+      `- Customer-facing status line: ${storeStatus.message}`,
+      "- Never claim the store is closed unless this status block says Open now: No.",
+    ].join("\n");
+
     // Fetch all chat + voice config from DynamoDB in parallel
     const [chatConfig, voiceConfig] = await Promise.all([
       getAgentConfigBatch("agent_chat_"),
@@ -80,7 +93,7 @@ export async function GET() {
     if (voiceFullOverride) {
       return NextResponse.json(
         {
-          system_prompt: voiceFullOverride,
+          system_prompt: `${voiceFullOverride}\n\n${statusContext}`,
           voice: voiceConfig["agent_voice_voice"] || "alloy",
           temperature: parseFloat(voiceConfig["agent_voice_temperature"] || "0.8"),
           source: "full_override",
@@ -92,7 +105,7 @@ export async function GET() {
     }
 
     // ── 4. Assemble from pieces ──
-    const parts = [basePrompt, voiceAddendum];
+    const parts = [basePrompt, voiceAddendum, statusContext];
 
     // Inject chat tone if set
     const tone = chatConfig["agent_chat_tone"];
@@ -138,10 +151,21 @@ export async function GET() {
   } catch (err) {
     console.error("Failed to build voice prompt:", err);
 
+    const fallbackStatus = getStoreStatusInEastern(STORE_HOURS);
+    const fallbackStatusContext = [
+      "REAL-TIME STORE STATUS (authoritative):",
+      `- Time zone: ${fallbackStatus.timezone}`,
+      `- Current local time: ${fallbackStatus.now_label}`,
+      `- Today's schedule: ${fallbackStatus.today_schedule}`,
+      `- Open now: ${fallbackStatus.open ? "Yes" : "No"}`,
+      `- Customer-facing status line: ${fallbackStatus.message}`,
+      "- Never claim the store is closed unless this status block says Open now: No.",
+    ].join("\n");
+
     // Fallback: return the hardcoded defaults so calls never fail
     return NextResponse.json(
       {
-        system_prompt: DEFAULT_CHAT_PROMPT + DEFAULT_VOICE_ADDENDUM,
+        system_prompt: `${DEFAULT_CHAT_PROMPT}${DEFAULT_VOICE_ADDENDUM}\n\n${fallbackStatusContext}`,
         voice: "alloy",
         temperature: 0.8,
         source: "fallback",
