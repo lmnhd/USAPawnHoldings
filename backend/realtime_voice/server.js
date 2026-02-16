@@ -23,6 +23,37 @@ if (!OPENAI_API_KEY) {
 const OPENAI_REALTIME_URL =
   "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
 
+const VOICE_TOOLS = [
+  {
+    type: "function",
+    name: "schedule_visit",
+    description:
+      "Book an in-store appointment. Use only after collecting customer name, phone, preferred time, and item description.",
+    parameters: {
+      type: "object",
+      properties: {
+        customer_name: { type: "string", description: "Customer full name" },
+        phone: { type: "string", description: "Customer callback phone number" },
+        preferred_time: {
+          type: "string",
+          description:
+            "Requested appointment time. Prefer ISO 8601 (example: 2026-02-18T15:00:00-05:00)",
+        },
+        item_description: {
+          type: "string",
+          description: "What the customer is bringing for appraisal or pawn",
+        },
+        estimated_value: {
+          type: "number",
+          description: "Optional estimated value in USD",
+        },
+      },
+      required: ["customer_name", "phone", "preferred_time", "item_description"],
+      additionalProperties: false,
+    },
+  },
+];
+
 // ─────────────────────────────────────────────────────────────
 // DYNAMIC PROMPT — fetched from Vercel API, cached 5 minutes
 // Falls back to a hardcoded default if API is unreachable.
@@ -44,6 +75,183 @@ let cachedConfig = {
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function parseJsonSafe(value, fallback = {}) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizePhone(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+${digits}`;
+  }
+  if (digits.length >= 8 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return "";
+}
+
+function normalizePreferredTime(raw) {
+  const input = String(raw ?? "").trim();
+  if (!input) return "";
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return parsed.toISOString();
+}
+
+function normalizeEstimatedValue(raw) {
+  if (raw == null || raw === "") return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  return value;
+}
+
+async function logVoiceBookingAudit({
+  streamSid,
+  callId,
+  status,
+  payload,
+  result,
+}) {
+  try {
+    await fetch(`${FRONTEND_URL}/api/conversations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_id: `voice_booking_${callId || streamSid || Date.now()}`,
+        channel: "voice",
+        started_at: new Date().toISOString(),
+        customer_id: payload?.phone || undefined,
+        metadata: {
+          event: "voice_schedule_visit",
+          status,
+          stream_sid: streamSid ?? null,
+          call_id: callId ?? null,
+        },
+        messages: [
+          {
+            role: "system",
+            content: `Voice schedule_visit ${status}. payload=${JSON.stringify(payload)} result=${JSON.stringify(result)}`,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    console.warn("⚠️  Failed to persist voice booking audit log:", err?.message || err);
+  }
+}
+
+async function scheduleVisitFromVoice(args, context = {}) {
+  const normalizedPhone = normalizePhone(args.phone);
+  const normalizedPreferredTime = normalizePreferredTime(args.preferred_time);
+  const normalizedEstimatedValue = normalizeEstimatedValue(args.estimated_value);
+
+  const payload = {
+    customer_name: String(args.customer_name ?? "").trim(),
+    phone: normalizedPhone,
+    preferred_time: normalizedPreferredTime,
+    item_description: String(args.item_description ?? "").trim(),
+    ...(normalizedEstimatedValue != null ? { estimated_value: normalizedEstimatedValue } : {}),
+  };
+
+  const missing = Object.entries(payload)
+    .filter(([key, value]) => key !== "estimated_value" && (!value || String(value).length === 0))
+    .map(([key]) => key);
+
+  if (!normalizedPhone) {
+    missing.push("phone");
+  }
+  if (!normalizedPreferredTime) {
+    missing.push("preferred_time");
+  }
+
+  const uniqueMissing = Array.from(new Set(missing));
+
+  if (uniqueMissing.length > 0) {
+    const failure = {
+      success: false,
+      error: "Missing required appointment fields",
+      missing_fields: uniqueMissing,
+      validation: {
+        phone_hint: "Provide a valid callback number with country/area code.",
+        preferred_time_hint: "Provide a real date/time value (prefer ISO 8601).",
+      },
+    };
+    await logVoiceBookingAudit({
+      streamSid: context.streamSid,
+      callId: context.callId,
+      status: "validation_failed",
+      payload,
+      result: failure,
+    });
+    return failure;
+  }
+
+  const response = await fetch(`${FRONTEND_URL}/api/schedule`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const failure = {
+      success: false,
+      error: result?.error || `Schedule API HTTP ${response.status}`,
+      details: result?.details,
+      suggest_next: result?.suggest_next,
+    };
+    await logVoiceBookingAudit({
+      streamSid: context.streamSid,
+      callId: context.callId,
+      status: "schedule_api_failed",
+      payload,
+      result: failure,
+    });
+    return failure;
+  }
+
+  const success = {
+    success: true,
+    lead_id: result.lead_id,
+    appointment_id: result.appointment_id,
+    scheduled_time: result.scheduled_time,
+    confirmation_code: result.confirmation_code,
+    sms_sent: result.sms_sent,
+    status: result.status,
+  };
+  await logVoiceBookingAudit({
+    streamSid: context.streamSid,
+    callId: context.callId,
+    status: "scheduled",
+    payload,
+    result: success,
+  });
+  return success;
+}
+
+async function runVoiceTool(name, args, context = {}) {
+  switch (name) {
+    case "schedule_visit":
+      return scheduleVisitFromVoice(args, context);
+    default:
+      return { success: false, error: `Unsupported voice tool: ${name}` };
+  }
+}
 
 async function getVoiceConfig() {
   const now = Date.now();
@@ -123,6 +331,7 @@ fastify.register(async (app) => {
     let lastAssistantItem = null;
     let markQueue = [];
     let responseStartTimestampTwilio = null;
+    const handledCallIds = new Set();
 
     // Open a connection to OpenAI Realtime
     const openaiWs = new WebSocket(OPENAI_REALTIME_URL, {
@@ -131,6 +340,41 @@ fastify.register(async (app) => {
         "OpenAI-Beta": "realtime=v1",
       },
     });
+
+    const processToolCall = async (name, callId, argsJson) => {
+      if (!callId || handledCallIds.has(callId)) {
+        return;
+      }
+      handledCallIds.add(callId);
+
+      const args = typeof argsJson === "string" ? parseJsonSafe(argsJson, {}) : argsJson ?? {};
+      console.log(`🛠️  Voice tool call: ${name} (${callId})`, args);
+
+      let output;
+      try {
+        output = await runVoiceTool(name, args, { streamSid, callId });
+      } catch (err) {
+        output = {
+          success: false,
+          error: "Tool execution failed",
+          details: err?.message || String(err),
+        };
+      }
+
+      if (openaiWs.readyState === WebSocket.OPEN) {
+        openaiWs.send(
+          JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+              type: "function_call_output",
+              call_id: callId,
+              output: JSON.stringify(output),
+            },
+          })
+        );
+        openaiWs.send(JSON.stringify({ type: "response.create" }));
+      }
+    };
 
     // ── Send session config once OpenAI connects ──
     openaiWs.on("open", () => {
@@ -143,9 +387,11 @@ fastify.register(async (app) => {
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
           voice: voiceConfig.voice,
-          instructions: voiceConfig.system_prompt,
+          instructions: `${voiceConfig.system_prompt}\n\nTOOL RULES: When booking an appointment, collect all required fields first, then call schedule_visit. Never claim an appointment is booked unless the tool returns success. If tool returns an error, explain clearly and ask for corrected info or another time.`,
           modalities: ["text", "audio"],
           temperature: voiceConfig.temperature,
+          tools: VOICE_TOOLS,
+          tool_choice: "auto",
         },
       };
 
@@ -187,6 +433,14 @@ fastify.register(async (app) => {
         // Track when assistant finishes speaking (for interruption support)
         if (response.type === "input_audio_buffer.speech_started") {
           handleSpeechStartedEvent(socket, openaiWs, streamSid, lastAssistantItem, markQueue, responseStartTimestampTwilio, latestMediaTimestamp);
+        }
+
+        if (response.type === "response.function_call_arguments.done") {
+          void processToolCall(response.name, response.call_id, response.arguments);
+        }
+
+        if (response.type === "response.output_item.done" && response.item?.type === "function_call") {
+          void processToolCall(response.item.name, response.item.call_id, response.item.arguments);
         }
       } catch (err) {
         console.error("Error parsing OpenAI message:", err);

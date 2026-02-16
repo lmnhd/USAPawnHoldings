@@ -21,6 +21,11 @@ interface Conversation {
   ended_at: string;
   message_count?: number;
   error?: string;
+  metadata?: {
+    event?: string;
+    status?: string;
+    [key: string]: unknown;
+  };
 }
 
 interface DashboardChatHistoryProps {
@@ -145,6 +150,7 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
+  const [view, setView] = useState<'all' | 'voice-audit'>('all');
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -189,17 +195,50 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
     );
   }
 
+  const filtered = view === 'voice-audit'
+    ? conversations.filter(
+        (conv) =>
+          conv.metadata?.event === 'voice_schedule_visit' ||
+          conv.conversation_id.startsWith('voice_booking_')
+      )
+    : conversations;
+
   return (
     <>
+      <div className="flex items-center gap-2 mb-3">
+        <Button
+          size="sm"
+          variant={view === 'all' ? 'default' : 'outline'}
+          onClick={() => setView('all')}
+          className="text-xs"
+        >
+          All
+        </Button>
+        <Button
+          size="sm"
+          variant={view === 'voice-audit' ? 'default' : 'outline'}
+          onClick={() => setView('voice-audit')}
+          className="text-xs"
+        >
+          Voice Booking Audits
+        </Button>
+      </div>
       <ScrollArea className="max-h-[600px]">
         <div className="space-y-3 pr-4 pb-20">
-          {conversations.map((conv) => (
+          {filtered.map((conv) => (
             <ConversationCard
               key={conv.conversation_id}
               conv={conv}
               onExpand={() => setSelectedConv(conv)}
             />
           ))}
+          {view === 'voice-audit' && filtered.length === 0 && (
+            <Card className="p-4 rounded-xl bg-vault-surface border border-vault-gold/5">
+              <CardContent className="p-0 text-sm text-vault-text-muted font-body">
+                No voice booking audit events yet.
+              </CardContent>
+            </Card>
+          )}
         </div>
       </ScrollArea>
 

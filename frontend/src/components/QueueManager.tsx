@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export interface QueueItem {
   lead_id: string;
+  appointment_id?: string;
   customer_name: string;
   appointment_time?: string;
   item_description: string;
@@ -18,7 +19,7 @@ export interface QueueItem {
 interface QueueManagerProps {
   queue: QueueItem[];
   loading?: boolean;
-  onMarkComplete?: (leadId: string) => void;
+  onMarkComplete?: (item: QueueItem) => void;
 }
 
 function formatQueueTime(isoString?: string): string {
@@ -160,7 +161,7 @@ export default function QueueManager({ queue, loading, onMarkComplete }: QueueMa
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => onMarkComplete(item.lead_id)}
+                  onClick={() => onMarkComplete(item)}
                   className="flex-shrink-0 text-vault-success/70 hover:text-vault-success hover:bg-vault-success/10"
                   title="Mark Complete"
                 >

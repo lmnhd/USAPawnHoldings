@@ -34,7 +34,7 @@ export default function StaffPage() {
 
       const [staffRes, leadsRes] = await Promise.all([
         fetch(`/api/staff-log?date=${today}`),
-        fetch(`/api/leads?status=scheduled&limit=20`),
+        fetch(`/api/leads?limit=200`),
       ]);
 
       // Process staff log — find active shift
@@ -89,14 +89,24 @@ export default function StaffPage() {
       // Process leads/queue
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
-        const leads: QueueItem[] = (leadsData.leads ?? []).map((l: any) => ({
+        const leads: QueueItem[] = (leadsData.leads ?? [])
+          .filter((l: any) => {
+            const type = String(l.type ?? '').toLowerCase();
+            const hasAppointmentShape = type === 'appointment' || !!l.appointment_id || !!l.scheduled_time || !!l.preferred_time;
+            if (!hasAppointmentShape) return false;
+
+            const status = String(l.status ?? '').toLowerCase();
+            return !['completed', 'cancelled', 'no-show', 'rejected', 'closed'].includes(status);
+          })
+          .map((l: any) => ({
           lead_id: l.lead_id,
+          appointment_id: l.appointment_id,
           customer_name: l.customer_name ?? 'Walk-in',
-          appointment_time: l.appointment_time ?? l.preferred_time,
+          appointment_time: l.scheduled_time ?? l.appointment_time ?? l.preferred_time,
           item_description: l.item_description ?? l.item_interest ?? '',
           estimated_value: l.estimated_value,
-          source: l.source ?? 'web',
-          status: l.status ?? 'scheduled',
+          source: l.source ?? 'appointment',
+          status: l.status ?? 'pending',
         }));
         setQueue(leads);
       }
@@ -163,14 +173,22 @@ export default function StaffPage() {
   /* ----------------------------------------------------------------
      Mark queue item complete
      ---------------------------------------------------------------- */
-  const handleMarkComplete = async (leadId: string) => {
+  const handleMarkComplete = async (item: QueueItem) => {
     try {
-      await fetch('/api/leads', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, status: 'completed' }),
-      });
-      setQueue((prev) => prev.filter((item) => item.lead_id !== leadId));
+      if (item.appointment_id) {
+        await fetch('/api/schedule', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointment_id: item.appointment_id, status: 'completed' }),
+        });
+      } else {
+        await fetch('/api/leads', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: item.lead_id, status: 'completed' }),
+        });
+      }
+      setQueue((prev) => prev.filter((queueItem) => queueItem.lead_id !== item.lead_id));
     } catch (err) {
       console.error('Failed to mark lead complete:', err);
     }
