@@ -43,7 +43,7 @@
 ### 2. Update Twilio Webhook
 
 1. Go to **Twilio Console > Phone Numbers > Active Numbers**
-2. Select your USA Pawn phone number: `(904) 744-1776`
+2. Select your USA Pawn phone number: `+19048718226`
 3. Under **Voice & Fax** section:
    - **"A call comes in"**: Webhook
    - **URL**: `https://usa-pawn-holdings.vercel.app/api/twilio/voice`
@@ -52,7 +52,7 @@
 
 ### 3. Test End-to-End
 
-**Call the number**: `(904) 744-1776`
+**Call the number**: `+19048718226` **(904) 871-8226**
 
 ✅ **Expected Flow:**
 1. Twilio receives call
