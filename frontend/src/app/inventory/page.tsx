@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import InventoryGrid, { InventoryItem } from '@/components/InventoryGrid';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ const PAGE_SIZE = 20;
 /* ── Page ── */
 
 export default function InventoryPage() {
+  const searchParams = useSearchParams();
   const [category, setCategory] = useState('All');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -31,6 +33,14 @@ export default function InventoryPage() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+
+  /* Initialize category from URL params on mount */
+  useEffect(() => {
+    const urlCategory = searchParams.get('category');
+    if (urlCategory) {
+      setCategory(urlCategory);
+    }
+  }, [searchParams]);
 
   /* Fetch category counts once on mount */
   useEffect(() => {

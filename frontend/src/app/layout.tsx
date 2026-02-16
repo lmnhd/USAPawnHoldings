@@ -30,6 +30,10 @@ export const metadata: Metadata = {
   title: 'USA Pawn Holdings | Jacksonville Pawn Shop',
   description: 'Jacksonville\'s premier pawn shop. Get instant cash for gold, jewelry, electronics, tools, and more. AI-powered appraisals in seconds.',
   keywords: ['pawn shop', 'Jacksonville', 'gold buyer', 'jewelry', 'electronics', 'instant cash'],
+  icons: {
+    icon: '/favicon.ico?v=20260215',
+    shortcut: '/favicon.ico?v=20260215',
+  },
   openGraph: {
     title: 'USA Pawn Holdings | Jacksonville Pawn Shop',
     description: 'Instant cash for your valuables. AI appraisals. Fast, fair, trustworthy.',

@@ -1,0 +1,20 @@
+{
+  "name": "usapawn-voice-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "USA Pawn Holdings — Realtime Voice AI (OpenAI Realtime API + Twilio Media Streams)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1",
+    "@fastify/websocket": "^11.0.2",
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

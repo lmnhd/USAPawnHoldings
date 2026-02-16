@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 export interface Lead {
   lead_id: string;
-  source: string;
+  source?: string;
+  type?: string;
   customer_name?: string;
   phone?: string;
   item_description: string;
@@ -55,16 +56,16 @@ function getRelativeTime(dateStr: string): string {
 
 function SkeletonCard() {
   return (
-    <Card className="p-4 rounded-xl bg-vault-surface border border-vault-gold/5">
+    <Card className="p-4 border rounded-xl bg-vault-surface border-vault-gold/5">
       <CardContent className="p-0">
-        <div className="flex justify-between items-start mb-3">
+        <div className="flex items-start justify-between mb-3">
           <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-5 w-16 rounded-full" />
+          <Skeleton className="w-16 h-5 rounded-full" />
         </div>
-        <Skeleton className="h-3 w-3/4 mb-2" />
-        <Skeleton className="h-3 w-1/2 mb-3" />
+        <Skeleton className="w-3/4 h-3 mb-2" />
+        <Skeleton className="w-1/2 h-3 mb-3" />
         <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
+          <Skeleton className="w-20 h-4" />
           <Skeleton className="h-3 w-14" />
         </div>
       </CardContent>
@@ -86,9 +87,9 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <span className="text-4xl mb-4" aria-hidden="true">📭</span>
-        <h3 className="font-display text-lg text-vault-text-light mb-2">No leads yet today</h3>
-        <p className="text-sm text-vault-text-muted font-body max-w-xs">
+        <span className="mb-4 text-4xl" aria-hidden="true">📭</span>
+        <h3 className="mb-2 text-lg font-display text-vault-text-light">No leads yet today</h3>
+        <p className="max-w-xs text-sm text-vault-text-muted font-body">
           Leads from the chat widget, appraisal portal, SMS, and phone calls will appear here in real time.
         </p>
       </div>
@@ -96,22 +97,34 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
   }
 
   return (
-    <ScrollArea className="max-h-[600px]">
-      <div className="space-y-3 pr-1">
+    <ScrollArea className="max-h-[600px]? scroll-pb-20">
+      <div className="pb-20 pr-1 space-y-3">
         {leads.map((lead) => {
-          const source = SOURCE_CONFIG[lead.source] ?? SOURCE_CONFIG.chat;
+          // Distinguish between appointments and appraisals
+          const isAppointment = lead.type === 'appointment';
+          const isAppraisal = lead.source === 'appraise_page';
+          const source = isAppointment 
+            ? { icon: '📅', label: 'Appointment', bg: 'bg-vault-success/20', text: 'text-vault-success' }
+            : SOURCE_CONFIG[lead.source ?? 'chat'] ?? SOURCE_CONFIG.chat;
           const status = STATUS_CONFIG[lead.status] ?? STATUS_CONFIG.new;
           const dateStr = lead.created_at ?? lead.timestamp ?? '';
+
+          // Different border colors for appointments vs appraisals
+          const borderColor = isAppointment 
+            ? 'border-vault-success/20 hover:border-vault-success/50'
+            : isAppraisal
+            ? 'border-vault-gold/20 hover:border-vault-gold/50'
+            : 'border-vault-gold/5 hover:border-vault-gold/30';
 
           return (
             <Card
               key={lead.lead_id}
-              className="group relative rounded-xl bg-vault-surface border border-vault-gold/5 hover:border-vault-gold/30 transition-all duration-200 cursor-pointer"
+              className={`relative pb-10 transition-all duration-200 border cursor-pointer group rounded-xl bg-vault-surface ${borderColor}`}
             >
               <CardContent className="p-4">
                 {/* Top Row — Name + Source Badge */}
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h4 className="font-body font-semibold text-vault-text-light text-sm truncate">
+                  <h4 className="text-sm font-semibold truncate font-body text-vault-text-light">
                     {lead.customer_name || 'Anonymous'}
                   </h4>
                   <Badge
@@ -124,7 +137,7 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
                 </div>
 
                 {/* Item Description */}
-                <p className="text-sm text-vault-text-muted font-body leading-snug line-clamp-2 mb-3">
+                <p className="mb-3 text-sm leading-snug text-vault-text-muted font-body line-clamp-2">
                   {lead.item_description}
                 </p>
 
@@ -145,7 +158,7 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
                     </Badge>
                   </div>
                   {dateStr && (
-                    <span className="text-xs font-mono text-vault-text-muted flex-shrink-0">
+                    <span className="flex-shrink-0 font-mono text-xs text-vault-text-muted">
                       {getRelativeTime(dateStr)}
                     </span>
                   )}

@@ -192,7 +192,7 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
   return (
     <>
       <ScrollArea className="max-h-[600px]">
-        <div className="space-y-3 pr-4">
+        <div className="space-y-3 pr-4 pb-20">
           {conversations.map((conv) => (
             <ConversationCard
               key={conv.conversation_id}

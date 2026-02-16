@@ -146,13 +146,41 @@ export async function scanItems<T extends Record<string, unknown>>(
 
 export async function updateItem<T extends Record<string, unknown>>(
   tableName: VaultTableName,
-  params: Omit<UpdateCommandInput, "TableName">,
+  key: Record<string, unknown>,
+  updates: Record<string, unknown>,
 ): Promise<T | null> {
+  // Build UpdateExpression dynamically from updates object
+  const updateExpressions: string[] = [];
+  const expressionAttributeNames: Record<string, string> = {};
+  const expressionAttributeValues: Record<string, unknown> = {};
+
+  let index = 0;
+  for (const [key, value] of Object.entries(updates)) {
+    if (value !== undefined) {
+      // Use placeholder names to avoid reserved words
+      const namePlaceholder = `#attr${index}`;
+      const valuePlaceholder = `:val${index}`;
+      
+      updateExpressions.push(`${namePlaceholder} = ${valuePlaceholder}`);
+      expressionAttributeNames[namePlaceholder] = key;
+      expressionAttributeValues[valuePlaceholder] = value;
+      index++;
+    }
+  }
+
+  if (updateExpressions.length === 0) {
+    // No updates to apply
+    return null;
+  }
+
   const result = await docClient.send(
     new UpdateCommand({
-      ...(params as UpdateCommandInput),
       TableName: tableName,
-      ReturnValues: params.ReturnValues ?? "ALL_NEW",
+      Key: key,
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: "ALL_NEW",
     }),
   );
   return (result.Attributes as T | undefined) ?? null;

@@ -82,11 +82,11 @@
   --vault-gold-light: #2A6AB5;
   --vault-gold-gradient: linear-gradient(135deg, #1B4D8E, #2A6AB5);
 
-  /* Backgrounds — clean, cool whites */
-  --vault-black: #F0F3F8;
-  --vault-black-deep: #F8FAFB;
-  --vault-surface: #E8ECF2;
-  --vault-surface-elevated: #DDE3ED;
+  /* Backgrounds — clean, light blue */
+  --vault-black: #E4EEFC;
+  --vault-black-deep: #ECF4FF;
+  --vault-surface: #DCE8F8;
+  --vault-surface-elevated: #D2E1F4;
   
   /* Accent — Classic red */
   --vault-red: #B80000;
@@ -98,14 +98,14 @@
   --vault-text-muted: #3D5070;
 
   /* Themed semantic tokens */
-  --vault-bg: #F8FAFB;
+  --vault-bg: #ECF4FF;
   --vault-text-primary: #0A1628;
   --vault-text-secondary: #3D5070;
   --vault-border: rgba(27, 77, 142, 0.2);
   --vault-border-accent: rgba(184, 0, 0, 0.2);
   --vault-card-bg: #FFFFFF;
   --vault-card-border: rgba(27, 77, 142, 0.15);
-  --vault-nav-bg: rgba(248, 250, 251, 0.97);
+  --vault-nav-bg: rgba(236, 244, 255, 0.97);
   --vault-input-bg: #FFFFFF;
   --vault-input-border: rgba(27, 77, 142, 0.25);
   --vault-hover-overlay: rgba(27, 77, 142, 0.06);
@@ -119,7 +119,7 @@
   --vault-info: #1B4D8E;
 
   /* ── shadcn/ui CSS Variables (light) ── */
-  --background: 200 27.3% 97.8%;
+  --background: 211 100% 96.5%;
   --foreground: 216 60% 9.8%;
   --card: 0 0% 100%;
   --card-foreground: 216 60% 9.8%;

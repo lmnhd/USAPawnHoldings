@@ -30,6 +30,12 @@ async function scanLeads(): Promise<LeadRecord[]> {
   return [];
 }
 
+async function deleteLead(leadId: string): Promise<void> {
+  if (typeof dynamodb.deleteItem === 'function') {
+    await dynamodb.deleteItem(LEADS_TABLE, { lead_id: leadId });
+  }
+}
+
 async function putLead(item: LeadRecord): Promise<void> {
   if (typeof dynamodb.putItem === 'function') {
     await dynamodb.putItem(LEADS_TABLE, item);
@@ -165,6 +171,36 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to update lead', details: (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const params = request.nextUrl.searchParams;
+    const clearAll = params.get('clear_all') === 'true';
+    const leadId = params.get('lead_id');
+
+    if (clearAll) {
+      const leads = await scanLeads();
+      let deleted = 0;
+      for (const lead of leads) {
+        await deleteLead(lead.lead_id);
+        deleted++;
+      }
+      return NextResponse.json({ success: true, deleted, message: `Cleared ${deleted} leads` });
+    }
+
+    if (leadId) {
+      await deleteLead(leadId);
+      return NextResponse.json({ success: true, lead_id: leadId });
+    }
+
+    return NextResponse.json({ error: 'Provide lead_id or clear_all=true' }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete leads', details: (error as Error).message },
       { status: 500 }
     );
   }

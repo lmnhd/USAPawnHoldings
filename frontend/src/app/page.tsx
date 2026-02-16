@@ -212,6 +212,7 @@ const categoryItems = [
     header: <SkeletonGoldPulse />,
     className: 'md:col-span-1',
     icon: <IconDiamond className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=jewelry',
   },
   {
     title: 'Electronics',
@@ -219,6 +220,7 @@ const categoryItems = [
     header: <SkeletonElectronics />,
     className: 'md:col-span-1',
     icon: <IconDeviceMobile className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=electronics',
   },
   {
     title: 'Tools & Equipment',
@@ -226,6 +228,7 @@ const categoryItems = [
     header: <SkeletonTools />,
     className: 'md:col-span-1',
     icon: <IconTool className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=tools',
   },
   {
     title: 'Firearms',
@@ -233,6 +236,7 @@ const categoryItems = [
     header: <SkeletonFirearms />,
     className: 'md:col-span-2',
     icon: <IconTargetArrow className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=firearms',
   },
   {
     title: 'Musical Instruments',
@@ -240,6 +244,7 @@ const categoryItems = [
     header: <SkeletonMusic />,
     className: 'md:col-span-1',
     icon: <IconMusic className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=musical',
   },
   {
     title: 'Collectibles',
@@ -247,6 +252,7 @@ const categoryItems = [
     header: <SkeletonCollectibles />,
     className: 'md:col-span-1',
     icon: <IconPalette className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=collectibles',
   },
   {
     title: 'And More...',
@@ -254,6 +260,7 @@ const categoryItems = [
     header: <SkeletonMore />,
     className: 'md:col-span-2',
     icon: <IconSparkles className="w-4 h-4 text-vault-gold" />,
+    href: '/inventory?category=sporting',
   },
 ];
 
@@ -371,7 +378,7 @@ export default function HomePage() {
       <HeroParallax 
         products={galleryImages}
         title="USA Pawn Holdings"
-        description="Where We Take Anything of Value and Treat You Like Family"
+        description="World class customer service, quality merchandise and low prices"
       />
 
       {/* Info Section After Hero */}
@@ -462,6 +469,7 @@ export default function HomePage() {
                 header={item.header}
                 className={cn("[&>p:text-lg]", item.className)}
                 icon={item.icon}
+                href={item.href}
               />
             ))}
           </BentoGrid>

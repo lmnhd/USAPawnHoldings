@@ -61,8 +61,8 @@ async function updateInventory(itemId: string, updates: Partial<InventoryItem>):
   }
 
   if (typeof dynamodb.updateItem === 'function') {
-    await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates);
-    return { ...target, ...updates };
+    const updated = await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates);
+    return updated ?? { ...target, ...updates };
   }
 
   const merged = { ...target, ...updates };

@@ -10,8 +10,8 @@ staff_config = {
     'value': json.dumps({
         'staff': [
             {'name': 'Demo Staff', 'pin': '1234'},
-            {'name': 'John Doe', 'pin': '5678'},
-            {'name': 'Jane Smith', 'pin': '9999'},
+            {'name': 'John Doe', 'pin': '1234'},
+            {'name': 'Jane Smith', 'pin': '1234'},
         ]
     }),
     'updated_at': datetime.utcnow().isoformat() + 'Z'

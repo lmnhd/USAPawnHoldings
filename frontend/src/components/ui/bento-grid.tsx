@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import React from "react";
+import Link from "next/link";
 
 export const BentoGrid = ({
   className,
@@ -28,18 +29,21 @@ export const BentoGridItem = ({
   description,
   header,
   icon,
+  href,
 }: {
   className?: string;
   title?: string | React.ReactNode;
   description?: string | React.ReactNode;
   header?: React.ReactNode;
   icon?: React.ReactNode;
+  href?: string;
 }) => {
-  return (
+  const content = (
     <div
       className={cn(
         "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault p-4 border border-vault-border bg-vault-surface-elevated justify-between flex flex-col space-y-4 hover:border-vault-red/40",
-        className
+        className,
+        href && "cursor-pointer"
       )}
     >
       {header}
@@ -54,4 +58,13 @@ export const BentoGridItem = ({
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block h-full">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 };

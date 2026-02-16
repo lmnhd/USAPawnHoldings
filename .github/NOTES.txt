@@ -1,0 +1,4 @@
+Chat inventory search may require vector indexing to find everything.
+work on neighborhood pages
+
+twillio voice with AWS websocket and OpenAI Realtime API

@@ -123,7 +123,8 @@ export default function AppraisalCard({ result, photoPreview, photoPreviews, onR
       const scheduleData = await scheduleRes.json();
       const smsWasSent = scheduleData?.sms_sent ?? false;
 
-      // Log lead
+      // Log appraisal (separate from appointment) so we track all appraisals
+      // Dashboard will deduplicate by customer to avoid double-counting in revenue
       await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

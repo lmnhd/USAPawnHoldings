@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { TABLES, putItem } from "@/lib/dynamodb";
+import { TABLES, putItem, scanItems, deleteItem } from "@/lib/dynamodb";
 import { analyzeImage, analyzeImages } from "@/lib/openai";
 import { getAgentConfigBatch } from "@/lib/agent-config";
 
@@ -263,6 +263,53 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
         error: "Unable to complete appraisal right now.",
         next_steps: "Visit us at 6132 Merrill Rd to get your official offer!",
       },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const params = request.nextUrl.searchParams;
+    const clearAll = params.get('clear_all') === 'true';
+    const appraisalId = params.get('appraisal_id');
+
+    if (clearAll) {
+      // Clear appraisal metadata from appraisals table
+      const appraisals = await scanItems<Record<string, unknown>>(TABLES.appraisals);
+      let deletedAppraisals = 0;
+      for (const appraisal of appraisals) {
+        await deleteItem(TABLES.appraisals, { appraisal_id: appraisal.appraisal_id });
+        deletedAppraisals++;
+      }
+
+      // Also clear appraisal leads from leads table (source='appraise_page')
+      const allLeads = await scanItems<Record<string, unknown>>(TABLES.leads);
+      const appraisalLeads = allLeads.filter((lead) => lead.source === 'appraise_page');
+      let deletedLeads = 0;
+      for (const lead of appraisalLeads) {
+        await deleteItem(TABLES.leads, { lead_id: lead.lead_id });
+        deletedLeads++;
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        deleted: deletedAppraisals, 
+        deleted_leads: deletedLeads,
+        message: `Cleared ${deletedAppraisals} appraisals and ${deletedLeads} appraisal leads` 
+      });
+    }
+
+    if (appraisalId) {
+      await deleteItem(TABLES.appraisals, { appraisal_id: appraisalId });
+      return NextResponse.json({ success: true, appraisal_id: appraisalId });
+    }
+
+    return NextResponse.json({ error: 'Provide appraisal_id or clear_all=true' }, { status: 400 });
+  } catch (error) {
+    console.error("Delete appraisal error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete appraisals" },
       { status: 500 },
     );
   }

@@ -26,12 +26,22 @@ export default function ClockInButton({ action, onSubmit, disabled }: ClockInBut
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus PIN input when modal opens
+  // Ref to prevent duplicate submissions
+  const submittingRef = useRef(false);
+  // Store onSubmit in a ref so the submit function never changes identity
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+  // Store pin in a ref for the stable submit function
+  const pinRef = useRef(pin);
+  pinRef.current = pin;
+
+  // Focus PIN input when modal opens; reset state only on open (not close)
   useEffect(() => {
     if (open) {
       setPin('');
       setError('');
       setLoading(false);
+      submittingRef.current = false;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
@@ -42,27 +52,32 @@ export default function ClockInButton({ action, onSubmit, disabled }: ClockInBut
     setError('');
   };
 
+  // Stable submit function — never changes identity
   const handleSubmit = useCallback(async () => {
-    if (pin.length !== 4 || loading) return;
+    if (submittingRef.current) return;
+    const currentPin = pinRef.current;
+    if (currentPin.length !== 4) return;
+    submittingRef.current = true;
     setLoading(true);
     setError('');
     try {
-      await onSubmit(pin);
+      await onSubmitRef.current(currentPin);
       setOpen(false);
     } catch (err: any) {
       setError(err?.message ?? 'Clock action failed. Try again.');
+      submittingRef.current = false;
     } finally {
       setLoading(false);
     }
-  }, [pin, loading, onSubmit]);
+  }, []); // No dependencies — stable forever
 
-  // Auto-submit on 4th digit (removed handleSubmit from dependencies to prevent infinite loop)
+  // Auto-submit once when pin reaches 4 digits (only while modal is open)
   useEffect(() => {
-    if (pin.length === 4 && !loading) {
+    if (open && pin.length === 4 && !submittingRef.current) {
       handleSubmit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin.length, loading]);
+  }, [pin]);
 
   const isClockIn = action === 'clock_in';
   const label = isClockIn ? 'Clock In' : 'Clock Out';

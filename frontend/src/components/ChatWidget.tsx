@@ -173,6 +173,9 @@ export default function ChatWidget() {
       setMessages((prev) => [...prev, assistantMsg]);
 
       const decoder = new TextDecoder();
+      let isFormRequest = false;
+      let isImageResponse = false;
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -180,38 +183,91 @@ export default function ChatWidget() {
         const chunk = decoder.decode(value, { stream: true });
         accumulatedContent += chunk;
 
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.id === assistantMsgId) {
-            updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-          }
-          return updated;
-        });
-      }
+        // Check if this looks like a form request (starts with { and contains __form_request)
+        if (!isFormRequest && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__form_request')) {
+          isFormRequest = true;
+        }
+        
+        // Check if this is an image response (starts with { and contains __with_image)
+        if (!isImageResponse && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__with_image')) {
+          isImageResponse = true;
+        }
 
-      // After streaming, check if response contains a form request
-      try {
-        // Try to parse as JSON to detect form requests
-        const parsed = JSON.parse(accumulatedContent);
-        if (parsed.__form_request && parsed.form_spec) {
-          // Store form spec and update message to indicate form is shown
-          setActiveForm(parsed.form_spec as FormSpec);
+        // Only update message content if it's not a special response
+        if (!isFormRequest && !isImageResponse) {
           setMessages((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
             if (updated[lastIdx]?.id === assistantMsgId) {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                content: parsed.form_spec.description || 'Please fill out the form below:',
-                formSpec: parsed.form_spec as FormSpec,
-              };
+              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
             }
             return updated;
           });
         }
-      } catch {
-        // Not JSON, treat as regular text message (already handled)
+      }
+
+      // After streaming, check if response contains special data
+      if (isFormRequest) {
+        try {
+          const parsed = JSON.parse(accumulatedContent);
+          if (parsed.__form_request && parsed.form_spec) {
+            // Store form spec and update message to indicate form is shown
+            setActiveForm(parsed.form_spec as FormSpec);
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              if (updated[lastIdx]?.id === assistantMsgId) {
+                updated[lastIdx] = {
+                  ...updated[lastIdx],
+                  content: parsed.form_spec.description || 'Please fill out the form below:',
+                  formSpec: parsed.form_spec as FormSpec,
+                };
+              }
+              return updated;
+            });
+          }
+        } catch (e) {
+          console.error('Failed to parse form request:', e);
+          // Fallback to showing the JSON as text
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx]?.id === assistantMsgId) {
+              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+            }
+            return updated;
+          });
+        }
+      } else if (isImageResponse) {
+        try {
+          const parsed = JSON.parse(accumulatedContent);
+          if (parsed.__with_image && parsed.content && parsed.image_url) {
+            // Update message with both content and image
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              if (updated[lastIdx]?.id === assistantMsgId) {
+                updated[lastIdx] = {
+                  ...updated[lastIdx],
+                  content: parsed.content,
+                  imageUrl: parsed.image_url,
+                };
+              }
+              return updated;
+            });
+          }
+        } catch (e) {
+          console.error('Failed to parse image response:', e);
+          // Fallback to showing the JSON as text
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx]?.id === assistantMsgId) {
+              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
+            }
+            return updated;
+          });
+        }
       }
     } catch {
       setMessages((prev) => [
@@ -256,18 +312,24 @@ export default function ChatWidget() {
   };
 
   const handleFormSubmit = (data: Record<string, string>) => {
-    // Format the form data as a user message
-    const formattedData = Object.entries(data)
-      .map(([key, value]) => `${key}: ${value}`)
+    // Format the form data in a clean, readable way for the AI
+    const formattedEntries = Object.entries(data)
+      .map(([key, value]) => {
+        // Convert snake_case to readable labels
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `${label}: ${value}`;
+      })
       .join('\n');
     
-    sendMessage(`Form submitted:\n${formattedData}`);
+    const formMessage = `Here's the information you requested:\n\n${formattedEntries}`;
+    
     setActiveForm(null);
+    sendMessage(formMessage);
   };
 
   const handleFormCancel = () => {
     setActiveForm(null);
-    sendMessage('Form cancelled');
+    sendMessage('I decided not to fill out the form right now');
   };
 
   // Collapsed bubble
@@ -290,10 +352,10 @@ export default function ChatWidget() {
     );
   }
 
-  // Expanded chat
+  // Expanded chat (1/3 wider and taller: 400→533px width, 600→800px height)
   const containerClass = isMobile
     ? 'fixed inset-0 z-50 bg-vault-black flex flex-col'
-    : 'fixed bottom-6 right-6 z-50 w-[400px] h-[600px] bg-vault-surface-elevated rounded-xl shadow-vault-lg border border-vault-border-accent flex flex-col overflow-hidden';
+    : 'fixed bottom-6 right-6 z-50 w-[533px] h-[800px] bg-vault-surface-elevated rounded-xl shadow-vault-lg border border-vault-border-accent flex flex-col overflow-hidden';
 
   return (
     <div className={containerClass} onKeyDown={handleKeyDown} role="dialog" aria-label="USA Pawn AI Chat">
@@ -341,8 +403,8 @@ export default function ChatWidget() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={msg.imageUrl}
-                      alt="Uploaded item"
-                      className="max-w-full h-auto max-h-32 rounded-lg"
+                      alt={msg.role === 'user' ? 'Uploaded item' : 'Inventory item'}
+                      className="max-w-full h-auto max-h-48 rounded-lg border-2 border-vault-border-accent shadow-lg"
                     />
                   </div>
                 )}

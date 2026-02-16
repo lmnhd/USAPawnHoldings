@@ -37,6 +37,12 @@ async function putLog(item: StaffLogRecord): Promise<void> {
   }
 }
 
+async function deleteLog(logId: string): Promise<void> {
+  if (typeof dynamodb.deleteItem === 'function') {
+    await dynamodb.deleteItem(STAFF_LOG_TABLE, { log_id: logId });
+  }
+}
+
 function todayToken(): string {
   const dateString = new Date().toISOString().slice(0, 10);
   return createHash('sha256')
@@ -152,12 +158,26 @@ export async function POST(request: NextRequest) {
     const complianceFlags: string[] = [];
     const configItems = await scanTable(STORE_CONFIG_TABLE);
     const staffRecords = getStaffRecords(configItems);
-    const matchedStaff = staffRecords.find(
-      (record) => record.name.toLowerCase() === staffName.toLowerCase() && record.pin === pin
-    );
+    
+    // Admin override PIN for force clock-out from dashboard
+    const isAdminOverride = pin === '0000' && location === 'dashboard_force';
+    
+    const matchedStaff = isAdminOverride 
+      ? { name: staffName, pin: '0000' } // Allow admin override
+      : staffRecords.find(
+          (record) => record.name.toLowerCase() === staffName.toLowerCase() && record.pin === pin
+        );
 
     if (!matchedStaff) {
-      complianceFlags.push('pin_validation_failed');
+      return NextResponse.json(
+        { error: 'Invalid PIN', compliance_flags: ['pin_validation_failed'] },
+        { status: 401 }
+      );
+    }
+
+    // Flag admin override in compliance
+    if (isAdminOverride) {
+      complianceFlags.push('admin_override');
     }
 
     if (eventType === 'in') {
@@ -206,6 +226,36 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to write staff log', details: (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const params = request.nextUrl.searchParams;
+    const clearAll = params.get('clear_all') === 'true';
+    const logId = params.get('log_id');
+
+    if (clearAll) {
+      const logs = await scanTable<StaffLogRecord>(STAFF_LOG_TABLE);
+      let deleted = 0;
+      for (const log of logs) {
+        await deleteLog(log.log_id);
+        deleted++;
+      }
+      return NextResponse.json({ success: true, deleted, message: `Cleared ${deleted} staff log entries` });
+    }
+
+    if (logId) {
+      await deleteLog(logId);
+      return NextResponse.json({ success: true, log_id: logId });
+    }
+
+    return NextResponse.json({ error: 'Provide log_id or clear_all=true' }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete staff logs', details: (error as Error).message },
       { status: 500 }
     );
   }

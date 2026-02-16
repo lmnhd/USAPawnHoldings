@@ -17,17 +17,20 @@ import {
   IconActivity,
   IconPhoto,
   IconUserPlus,
+  IconTrash,
 } from '@tabler/icons-react';
 import ComplianceAlerts, { type ComplianceAlert } from '@/components/ComplianceAlerts';
 import DashboardLeadFeed, { type Lead } from '@/components/DashboardLeadFeed';
 import DashboardStaffLog, { type StaffEntry } from '@/components/DashboardStaffLog';
 import DashboardChatHistory from '@/components/DashboardChatHistory';
 import AgentConfigPanel from '@/components/AgentConfigPanel';
+import DataManagementPanel from '@/components/DataManagementPanel';
 import DashboardInventoryManager from '@/components/DashboardInventoryManager';
 import StaffOnboarding from '@/components/StaffOnboarding';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import Image from 'next/image';
 
 /* ------------------------------------------------------------------
    Bento Metric Skeletons — animated dashboard headers
@@ -41,7 +44,7 @@ const SkeletonLeadPulse = ({ value }: { value: string | number }) => {
       whileHover="hover"
       className="flex flex-1 w-full h-full min-h-[6rem] flex-col justify-center gap-2 p-3"
     >
-      <div className="text-center mb-2">
+      <div className="mb-2 text-center">
         <span className="font-mono text-4xl font-bold text-vault-red">{value}</span>
       </div>
       {widths.map((w, i) => (
@@ -110,20 +113,20 @@ const SkeletonAlerts = ({ count }: { count: number }) => {
     <motion.div initial="initial" whileHover="animate" className="flex flex-1 w-full h-full min-h-[6rem] flex-col space-y-2 p-2">
       {count > 0 ? (
         <>
-          <motion.div variants={v1} className="flex flex-row rounded-2xl border border-vault-danger/30 p-2 items-start space-x-2 bg-vault-surface">
+          <motion.div variants={v1} className="flex flex-row items-start p-2 space-x-2 border rounded-2xl border-vault-danger/30 bg-vault-surface">
             <span className="text-lg">⚠️</span>
             <p className="text-xs text-vault-danger">{count} active compliance {count === 1 ? 'alert' : 'alerts'}</p>
           </motion.div>
-          <motion.div variants={v2} className="flex flex-row rounded-full border border-vault-warning/30 p-2 items-center justify-end space-x-2 w-3/4 ml-auto bg-vault-surface">
+          <motion.div variants={v2} className="flex flex-row items-center justify-end w-3/4 p-2 ml-auto space-x-2 border rounded-full border-vault-warning/30 bg-vault-surface">
             <p className="text-xs text-vault-warning">Review now →</p>
-            <div className="h-5 w-5 rounded-full bg-gradient-to-r from-vault-warning to-vault-danger shrink-0" />
+            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-vault-warning to-vault-danger shrink-0" />
           </motion.div>
         </>
       ) : (
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <span className="text-3xl">✅</span>
-            <p className="text-xs text-vault-success mt-2 font-mono">All Clear</p>
+            <p className="mt-2 font-mono text-xs text-vault-success">All Clear</p>
           </div>
         </div>
       )}
@@ -247,14 +250,33 @@ export default function DashboardPage() {
       const leadsData = leadsRes.ok ? await leadsRes.json() : { leads: [], count: 0 };
       const staffData = staffRes.ok ? await staffRes.json() : { logs: [] };
 
-      const fetchedLeads: Lead[] = leadsData.leads ?? [];
-      const fetchedStaff: StaffEntry[] = staffData.logs ?? staffData.staff_log ?? [];
+      // Deduplicate by primary key to prevent duplicate entries in UI
+      const rawLeads: Lead[] = leadsData.leads ?? [];
+      const fetchedLeads = Array.from(
+        new Map(rawLeads.map((l) => [l.lead_id, l])).values()
+      );
+
+      const rawStaff: StaffEntry[] = staffData.logs ?? staffData.staff_log ?? [];
+      const fetchedStaff = Array.from(
+        new Map(rawStaff.map((s) => [s.log_id, s])).values()
+      );
 
       // Derive metrics
       const todayLeads = fetchedLeads.filter((l) => {
         const ts = l.created_at ?? l.timestamp ?? '';
         return ts.startsWith(today);
       });
+
+      // Deduplicate by (customer_name + phone) for revenue calculation
+      // This prevents counting the same customer twice if they have both an appraisal and appointment
+      const uniqueCustomers = Array.from(
+        new Map(
+          todayLeads.map((l) => [
+            `${(l.customer_name ?? '').toLowerCase()}|${l.phone ?? ''}`,
+            l,
+          ])
+        ).values()
+      );
 
       // Count active staff (clocked in but not out)
       const activeSet = new Map<string, boolean>();
@@ -271,14 +293,15 @@ export default function DashboardPage() {
         }
       }
 
-      const revenue = todayLeads.reduce((sum, l) => sum + (l.estimated_value ?? 0), 0);
+      // Revenue from unique customers only (not double-counted)
+      const revenue = uniqueCustomers.reduce((sum, l) => sum + (l.estimated_value ?? 0), 0);
       const alerts = deriveComplianceAlerts(fetchedStaff);
 
       setLeads(fetchedLeads);
       setStaffLog(fetchedStaff);
       setComplianceAlerts(alerts);
       setMetrics({
-        leads: todayLeads.length,
+        leads: uniqueCustomers.length,
         staff: activeSet.size,
         revenue,
       });
@@ -303,21 +326,50 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'conversations' | 'agents' | 'inventory' | 'staff'>('overview');
+  /* ----------------------------------------------------------------
+     Force Clock-out Handler (for dashboard admin)
+     ---------------------------------------------------------------- */
+  const handleForceClockOut = useCallback(async (staffName: string) => {
+    try {
+      const res = await fetch('/api/staff-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staff_name: staffName,
+          pin: '0000', // Admin override PIN
+          event_type: 'out',
+          location: 'dashboard_force',
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data?.error ?? 'Force clock-out failed');
+      }
+
+      // Refresh dashboard data
+      await fetchDashboardData();
+    } catch (err) {
+      console.error('Force clock-out error:', err);
+      throw err;
+    }
+  }, [fetchDashboardData]);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'conversations' | 'agents' | 'inventory' | 'staff' | 'data-management'>('overview');
 
   return (
     <div className="min-h-[calc(100vh-8rem)] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-vault-gold tracking-wide">
-            🏛️ USA Pawn — Owner Dashboard
+          <h1 className="text-3xl font-bold tracking-wide font-display md:text-4xl text-vault-gold">
+            <span><Image src="/logo-symbol-2.PNG" alt="USA Pawn Holdings Logo" width={48} height={48} className="inline-block mr-2" /></span>USA Pawn — Owner Dashboard
           </h1>
-          <p className="text-sm text-vault-text-muted font-body mt-1">
+          <p className="mt-1 text-sm text-vault-text-muted font-body">
             Command Center for USA Pawn Holdings
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono text-vault-text-muted">
+        <div className="flex items-center gap-2 font-mono text-xs text-vault-text-muted">
           <span
             className={`inline-block w-2 h-2 rounded-full ${
               loading ? 'bg-vault-warning animate-pulse' : 'bg-vault-success'
@@ -331,7 +383,7 @@ export default function DashboardPage() {
 
       {/* ── Navigation Tabs ────────────────────────────── */}
       <div className="mb-8">
-        <nav className="flex gap-1 p-1 rounded-xl bg-vault-surface border border-vault-border overflow-x-auto">
+        <nav className="flex gap-1 p-1 overflow-x-auto border rounded-xl bg-vault-surface border-vault-border">
           {[
             { id: 'overview' as const, label: 'Overview', icon: IconLayoutDashboard, badge: complianceAlerts.length > 0 ? `${complianceAlerts.length}` : undefined, badgeColor: 'vault-danger' },
             { id: 'activity' as const, label: 'Leads & Staff', icon: IconActivity, badge: `${leads.length}` },
@@ -339,6 +391,7 @@ export default function DashboardPage() {
             { id: 'inventory' as const, label: 'Inventory', icon: IconPhoto },
             { id: 'conversations' as const, label: 'Conversations', icon: IconMessage },
             { id: 'agents' as const, label: 'AI Agents', icon: IconRobot },
+            { id: 'data-management' as const, label: 'Data Mgmt', icon: IconTrash, badge: undefined, badgeColor: 'vault-danger' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -367,7 +420,7 @@ export default function DashboardPage() {
               {activeTab === tab.id && (
                 <motion.div
                   layoutId="dashboard-tab-indicator"
-                  className="absolute inset-0 rounded-lg bg-vault-gold/10 border border-vault-gold/20"
+                  className="absolute inset-0 border rounded-lg bg-vault-gold/10 border-vault-gold/20"
                   style={{ zIndex: -1 }}
                   transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
                 />
@@ -402,21 +455,21 @@ export default function DashboardPage() {
                 description="New customer interactions captured today"
                 header={<SkeletonLeadPulse value={loading ? '—' : metrics.leads} />}
                 className="md:col-span-1"
-                icon={<IconChartBar className="h-4 w-4 text-vault-red" />}
+                icon={<IconChartBar className="w-4 h-4 text-vault-red" />}
               />
               <BentoGridItem
                 title="Active Staff"
                 description="Currently clocked in and on-site"
                 header={<SkeletonStaffActive value={loading ? '—' : metrics.staff} />}
                 className="md:col-span-1"
-                icon={<IconUsers className="h-4 w-4 text-vault-success" />}
+                icon={<IconUsers className="w-4 h-4 text-vault-success" />}
               />
               <BentoGridItem
                 title="Est. Revenue"
                 description="Projected revenue from today's leads"
                 header={<SkeletonRevenue value={loading ? '—' : `$${metrics.revenue.toLocaleString()}`} />}
                 className="md:col-span-1"
-                icon={<IconCoin className="h-4 w-4 text-vault-gold" />}
+                icon={<IconCoin className="w-4 h-4 text-vault-gold" />}
               />
             </BentoGrid>
 
@@ -426,12 +479,12 @@ export default function DashboardPage() {
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
               )}>
                 <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                  <IconAntenna className="h-4 w-4 text-vault-red" />
-                  <CardTitle className="font-display text-lg font-bold text-vault-text-light">Recent Leads</CardTitle>
-                  <Badge variant="secondary" className="ml-auto font-mono text-vault-text-muted bg-vault-surface px-2 py-1 rounded-full">{leads.length} total</Badge>
+                  <IconAntenna className="w-4 h-4 text-vault-red" />
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Recent Leads</CardTitle>
+                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{leads.length} total</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 overflow-y-auto p-5">
+                <CardContent className="flex-1 p-5 overflow-y-auto">
                   <DashboardLeadFeed leads={leads.slice(0, 8)} loading={loading} />
                 </CardContent>
               </Card>
@@ -440,13 +493,13 @@ export default function DashboardPage() {
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
               )}>
                 <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                  <IconClockHour4 className="h-4 w-4 text-vault-gold" />
-                  <CardTitle className="font-display text-lg font-bold text-vault-text-light">Staff Activity</CardTitle>
-                  <Badge variant="secondary" className="ml-auto font-mono text-vault-text-muted bg-vault-surface px-2 py-1 rounded-full">{metrics.staff} active</Badge>
+                  <IconClockHour4 className="w-4 h-4 text-vault-gold" />
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
+                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 overflow-y-auto p-5">
-                  <DashboardStaffLog staffLog={staffLog.slice(0, 10)} loading={loading} />
+                <CardContent className="flex-1 p-5 overflow-y-auto">
+                  <DashboardStaffLog staffLog={staffLog.slice(0, 10)} loading={loading} onForceClockOut={handleForceClockOut} />
                 </CardContent>
               </Card>
             </BentoGrid>
@@ -468,12 +521,12 @@ export default function DashboardPage() {
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
               )}>
                 <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                  <IconAntenna className="h-4 w-4 text-vault-red" />
-                  <CardTitle className="font-display text-lg font-bold text-vault-text-light">All Leads</CardTitle>
-                  <Badge variant="secondary" className="ml-auto font-mono text-vault-text-muted bg-vault-surface px-2 py-1 rounded-full">{leads.length} total</Badge>
+                  <IconAntenna className="w-4 h-4 text-vault-red" />
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">All Leads</CardTitle>
+                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{leads.length} total</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 overflow-y-auto p-5">
+                <CardContent className="flex-1 p-5 overflow-y-auto">
                   <DashboardLeadFeed leads={leads} loading={loading} />
                 </CardContent>
               </Card>
@@ -483,13 +536,13 @@ export default function DashboardPage() {
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
               )}>
                 <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                  <IconClockHour4 className="h-4 w-4 text-vault-gold" />
-                  <CardTitle className="font-display text-lg font-bold text-vault-text-light">Staff Activity</CardTitle>
-                  <Badge variant="secondary" className="ml-auto font-mono text-vault-text-muted bg-vault-surface px-2 py-1 rounded-full">{metrics.staff} active</Badge>
+                  <IconClockHour4 className="w-4 h-4 text-vault-gold" />
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
+                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 overflow-y-auto p-5">
-                  <DashboardStaffLog staffLog={staffLog} loading={loading} />
+                <CardContent className="flex-1 p-5 overflow-y-auto">
+                  <DashboardStaffLog staffLog={staffLog} loading={loading} onForceClockOut={handleForceClockOut} />
                 </CardContent>
               </Card>
             </BentoGrid>
@@ -543,12 +596,12 @@ export default function DashboardPage() {
               "rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 overflow-hidden"
             )}>
               <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                <IconMessage className="h-4 w-4 text-vault-red" />
-                <CardTitle className="font-display text-lg font-bold text-vault-text-light">Chat History</CardTitle>
-                <Badge variant="secondary" className="ml-auto font-mono text-vault-text-muted bg-vault-surface px-2 py-1 rounded-full">QA/Review</Badge>
+                <IconMessage className="w-4 h-4 text-vault-red" />
+                <CardTitle className="text-lg font-bold font-display text-vault-text-light">Chat History</CardTitle>
+                <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">QA/Review</Badge>
               </CardHeader>
               <Separator className="bg-vault-border" />
-              <CardContent className="flex-1 overflow-y-auto p-5">
+              <CardContent className="flex-1 p-5 overflow-y-auto">
                 <DashboardChatHistory maxDisplay={50} />
               </CardContent>
             </Card>
@@ -565,6 +618,19 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
           >
             <AgentConfigPanel />
+          </motion.div>
+        )}
+
+        {/* ═══ DATA MANAGEMENT TAB ═══ */}
+        {activeTab === 'data-management' && (
+          <motion.div
+            key="data-management"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DataManagementPanel onDataCleared={fetchDashboardData} />
           </motion.div>
         )}
       </AnimatePresence>

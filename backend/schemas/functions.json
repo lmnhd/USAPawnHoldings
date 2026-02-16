@@ -100,7 +100,7 @@
   },
   {
     "name": "request_form",
-    "description": "Display a structured form to the user for collecting multiple pieces of information at once. Use this when you need to gather several related fields (name, phone, time, etc.) instead of asking multiple separate questions.",
+    "description": "Display a structured form to the user for collecting multiple pieces of information at once. Use when gathering 2+ fields like name+phone+time. EXAMPLE: For scheduling, call with {title:'Schedule Your Visit', fields:[{name:'customer_name',label:'Full Name',type:'text',required:true},{name:'phone',label:'Phone',type:'tel',required:true},{name:'preferred_time',label:'Preferred Time',type:'select',options:['Tomorrow 10am','Tomorrow 2pm','Friday 10am','Friday 2pm'],required:true}], submitLabel:'Schedule Visit'}",
     "parameters": {
       "type": "object",
       "properties": {

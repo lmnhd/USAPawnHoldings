@@ -135,7 +135,7 @@ export default function StaffPage() {
   /* ----------------------------------------------------------------
      Clock action handler
      ---------------------------------------------------------------- */
-  const handleClockAction = async (action: 'clock_in' | 'clock_out', pin: string) => {
+  const handleClockAction = useCallback(async (action: 'clock_in' | 'clock_out', pin: string) => {
     const name = staffName || 'Staff';
 
     const res = await fetch('/api/staff-log', {
@@ -152,18 +152,13 @@ export default function StaffPage() {
     const data = await res.json();
 
     if (!res.ok) {
+      // API returns 401 for invalid PIN, 400 for bad request, 500 for server error
       throw new Error(data?.error ?? 'Clock action failed');
     }
 
-    // Check compliance flags
-    const flags: string[] = data.compliance_flags ?? [];
-    if (flags.includes('pin_validation_failed')) {
-      throw new Error('Invalid PIN. Please check and try again.');
-    }
-
-    // Refresh data
+    // Success - refresh data to show updated shift status
     await fetchData();
-  };
+  }, [staffName, fetchData]);
 
   /* ----------------------------------------------------------------
      Mark queue item complete

@@ -80,11 +80,11 @@ export const HeroParallax = ({
   const springConfig = { stiffness: 300, damping: 30, bounce: 100 };
 
   const translateX = useSpring(
-    useTransform(scrollYProgress, [0, 1], [0, 1000]),
+    useTransform(scrollYProgress, [0, 1], [0, 750]),
     springConfig
   );
   const translateXReverse = useSpring(
-    useTransform(scrollYProgress, [0, 1], [0, -1000]),
+    useTransform(scrollYProgress, [0, 1], [0, -750]),
     springConfig
   );
   const rotateX = useSpring(
@@ -92,7 +92,7 @@ export const HeroParallax = ({
     springConfig
   );
   const opacity = useSpring(
-    useTransform(scrollYProgress, [0, 0.2], [0.2, 1]),
+    useTransform(scrollYProgress, [0, 0.2], [0.45, 0.82]),
     springConfig
   );
   const rotateZ = useSpring(
@@ -122,7 +122,7 @@ export const HeroParallax = ({
       />
       
       {/* Overlay - light for light mode, dark blue for dark mode */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-white/70 via-white/80 to-white/70 dark:from-[#0B1426]/70 dark:via-[#0B1426]/75 dark:to-[#0B1426]/70" />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-[#d6e8ff]/35 via-[#e6f1ff]/45 to-[#d6e8ff]/35 dark:from-[#0B1426]/70 dark:via-[#0B1426]/75 dark:to-[#0B1426]/70" />
 
       <Header 
         title={title} 
@@ -140,30 +140,34 @@ export const HeroParallax = ({
         className="relative z-[2]"
       >
         <motion.div className="flex flex-row-reverse mb-10 space-x-10 space-x-reverse md:space-x-20 md:mb-20">
-          {firstRow.map((product) => (
-            <ProductCard
-              product={product}
-              translate={translateX}
-              key={product.title}
-            />
+          {firstRow.map((product, idx) => (
+            <div key={`first-${idx}`}>
+                <ProductCard
+                  product={product}
+                  translate={translateX}
+                />
+                
+            </div>
           ))}
         </motion.div>
         <motion.div className="flex flex-row mb-10 space-x-10 md:mb-20 md:space-x-20 ">
-          {secondRow.map((product) => (
+          {secondRow.map((product, idx) => (
             <ProductCard
               product={product}
               translate={translateXReverse}
-              key={product.title}
+              key={`second-${idx}`}
             />
           ))}
         </motion.div>
         <motion.div className="flex flex-row-reverse space-x-10 space-x-reverse md:space-x-20">
-          {thirdRow.map((product) => (
-            <ProductCard
-              product={product}
-              translate={translateX}
-              key={product.title}
-            />
+          {thirdRow.map((product, idx) => (
+            <div key={`third-${idx}`}>
+                <ProductCard
+                  product={product}
+                  translate={translateX}
+                />
+                <div></div>
+            </div>
           ))}
         </motion.div>
       </motion.div>
@@ -207,24 +211,26 @@ export const Header = ({
           />
         </div>
 
-        {/* Decorative lines with tagline */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span className="w-10 h-px bg-[#CC0000] shadow-sm" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-gray-700 dark:text-white font-bold drop-shadow-md dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-            No Pressure • Free Appraisals
-          </span>
-          <span className="w-10 h-px bg-[#CC0000] shadow-sm" />
+        <div className="w-full max-w-3xl px-4 py-5 mt-1 border rounded-2xl bg-white/76 dark:bg-[#0B1426]/58 border-vault-gold/35 backdrop-blur-[2px] shadow-[0_12px_36px_rgba(10,22,40,0.22)]">
+          {/* Decorative lines with tagline */}
+          <div className="flex items-center justify-center gap-2 mb-5">
+            <span className="w-12 h-px bg-[#CC0000] shadow-sm" />
+            <span className="font-mono text-xs md:text-sm uppercase tracking-[0.18em] text-gray-700 dark:text-white font-bold drop-shadow-[0_2px_10px_rgba(255,255,255,0.95)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+              No Pressure • Free Appraisals
+            </span>
+            <span className="w-12 h-px bg-[#CC0000] shadow-sm" />
+          </div>
+
+          {/* Description */}
+          <p className="max-w-2xl mx-auto text-center text-2xl md:text-4xl leading-tight text-gray-800 dark:text-white font-black drop-shadow-[0_3px_12px_rgba(255,255,255,0.95)] dark:drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)]">
+            {description}
+          </p>
+
+          {/* Address */}
+          <p className="mt-4 font-mono text-base text-center text-gray-700 dark:text-vault-text-light font-semibold drop-shadow-[0_2px_10px_rgba(255,255,255,0.95)] dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+            📍 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
+          </p>
         </div>
-
-        {/* Description */}
-        <p className="max-w-2xl text-center text-base md:text-xl leading-relaxed text-gray-800 dark:text-white font-semibold drop-shadow-md dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-          {description}
-        </p>
-
-        {/* Address */}
-        <p className="mt-4 font-mono text-sm text-gray-700 dark:text-vault-text-light font-semibold drop-shadow-md dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-          📍 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
-        </p>
       </div>
     </div>
   );
@@ -253,14 +259,14 @@ export const ProductCard = ({
           y: -20,
         }}
         key={product.title}
-        className="group/product h-64 md:h-96 w-[20rem] md:w-[30rem] relative flex-shrink-0 cursor-pointer"
+        className="group/product h-64 md:h-96 w-[20rem] md:w-[30rem] relative flex-shrink-0 cursor-pointer rounded-lg overflow-hidden border-2 border-vault-gold/85 dark:border-white/10 shadow-[0_10px_26px_rgba(27,77,142,0.28)] dark:shadow-none mr-10 md:mr-20"
         onClick={() => setIsModalOpen(true)}
       >
         <Image
           src={product.thumbnail}
           fill
           sizes="(max-width: 768px) 20rem, 30rem"
-          className="object-cover object-center rounded-lg"
+          className="object-cover object-center"
           alt={product.title}
         />
         <div className="absolute inset-0 w-full h-full transition-opacity bg-black rounded-lg opacity-0 pointer-events-none group-hover/product:opacity-80"></div>

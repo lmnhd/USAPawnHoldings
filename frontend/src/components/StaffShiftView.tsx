@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ClockInButton from './ClockInButton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +37,15 @@ function formatTime(isoString: string): string {
 
 export default function StaffShiftView({ shift, onClockAction, loading, staffName }: StaffShiftViewProps) {
   const [elapsed, setElapsed] = useState(0);
+
+  // Memoize clock action callbacks to prevent re-creation on every render
+  const handleClockIn = useCallback((pin: string) => {
+    return onClockAction('clock_in', pin);
+  }, [onClockAction]);
+
+  const handleClockOut = useCallback((pin: string) => {
+    return onClockAction('clock_out', pin);
+  }, [onClockAction]);
 
   useEffect(() => {
     if (!shift) {
@@ -86,7 +95,7 @@ export default function StaffShiftView({ shift, onClockAction, loading, staffNam
           </p>
           <ClockInButton
             action="clock_in"
-            onSubmit={(pin) => onClockAction('clock_in', pin)}
+            onSubmit={handleClockIn}
             disabled={!staffName}
           />
         </CardContent>
@@ -149,7 +158,7 @@ export default function StaffShiftView({ shift, onClockAction, loading, staffNam
         {/* Clock Out Button */}
         <ClockInButton
           action="clock_out"
-          onSubmit={(pin) => onClockAction('clock_out', pin)}
+          onSubmit={handleClockOut}
         />
       </CardContent>
     </Card>
