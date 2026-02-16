@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import OpenAI from "openai";
 import { TABLES, putItem } from "@/lib/dynamodb";
+import { createUnifiedConversationRecord } from "@/lib/conversation-model";
 
 // ─────────────────────────────────────────────────────────────
 // Twilio Inbound SMS/MMS Webhook
@@ -56,16 +57,25 @@ async function logConversation(
   mediaUrl?: string
 ) {
   try {
-    await putItem(TABLES.conversations, {
-      conversation_id: `sms_${phone}_${Date.now()}`,
+    const now = new Date().toISOString();
+    const record = createUnifiedConversationRecord({
+      conversation_id: `${channel}_${phone}_${Date.now()}`,
+      source: channel,
+      channel: "sms",
       phone,
-      channel,
+      started_at: now,
+      ended_at: now,
+      source_metadata: {
+        provider: "twilio",
+        interaction_type: channel,
+      },
       messages: [
         { role: "user", content: inbound, ...(mediaUrl ? { media_url: mediaUrl } : {}) },
         { role: "assistant", content: outbound },
       ],
-      started_at: new Date().toISOString(),
     });
+
+    await putItem(TABLES.conversations, record);
   } catch (err) {
     console.error("[SMS] Failed to log conversation:", err);
   }

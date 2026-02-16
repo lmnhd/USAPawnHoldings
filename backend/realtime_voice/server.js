@@ -52,6 +52,18 @@ const VOICE_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "check_store_status",
+    description:
+      "Check whether the store is currently open or closed and get today's hours. Call this tool BEFORE telling the caller the store is open or closed — do NOT guess from the system prompt.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -59,13 +71,13 @@ const VOICE_TOOLS = [
 // Falls back to a hardcoded default if API is unreachable.
 // ─────────────────────────────────────────────────────────────
 
-const FALLBACK_SYSTEM_MESSAGE = `You are Vault, the AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
+const FALLBACK_SYSTEM_MESSAGE = `You are the AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
 You are warm, friendly, and professional. Keep responses short — this is a phone call.
 Store hours (Eastern Time): Mon-Fri 9 AM – 6 PM, Sat 9 AM – 5 PM, Closed Sunday.
 Address: 6132 Merrill Rd, Suite 1, Jacksonville, FL 32277.
 Phone: (904) 744-5611. Pawn terms: 25% interest, 30-day term.
 Tell callers they can text a photo to this number for an instant AI appraisal.
-Do not claim the store is closed unless current Eastern Time is outside store hours.
+If a caller asks whether the store is open or closed, ALWAYS call the check_store_status tool first — do not guess.
 Greet callers warmly. Take messages (name + number) if you can't help directly.`;
 
 let cachedConfig = {
@@ -246,10 +258,43 @@ async function scheduleVisitFromVoice(args, context = {}) {
   return success;
 }
 
+async function checkStoreStatusLive() {
+  try {
+    const res = await fetch(`${FRONTEND_URL}/api/store-status`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return {
+      success: true,
+      open: data.open,
+      timezone: data.timezone,
+      current_time: data.now_label,
+      today_schedule: data.today_schedule,
+      message: data.message,
+    };
+  } catch (err) {
+    console.warn("⚠️  Failed to fetch live store status:", err?.message);
+    // Return Eastern time computed locally as fallback
+    const now = new Date();
+    const etTime = now.toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", hour: "numeric", minute: "2-digit", hour12: true });
+    return {
+      success: true,
+      open: null,
+      timezone: "America/New_York",
+      current_time: etTime + " ET",
+      today_schedule: "Mon-Fri 9 AM - 6 PM, Sat 9 AM - 5 PM, Sun Closed",
+      message: "I couldn't verify live status — please check store hours: Mon-Fri 9 AM - 6 PM ET, Sat 9 AM - 5 PM ET, closed Sunday.",
+    };
+  }
+}
+
 async function runVoiceTool(name, args, context = {}) {
   switch (name) {
     case "schedule_visit":
       return scheduleVisitFromVoice(args, context);
+    case "check_store_status":
+      return checkStoreStatusLive();
     default:
       return { success: false, error: `Unsupported voice tool: ${name}` };
   }
@@ -358,11 +403,14 @@ fastify.register(async (app) => {
     const voiceConfig = await getVoiceConfig();
     console.log(`🎙️  Using voice: ${voiceConfig.voice}, temp: ${voiceConfig.temperature}`);
 
-    let streamSid = null;
-    let latestMediaTimestamp = 0;
-    let lastAssistantItem = null;
-    let markQueue = [];
-    let responseStartTimestampTwilio = null;
+    // Use a mutable state object so helper functions can update values by reference
+    const callState = {
+      streamSid: null,
+      latestMediaTimestamp: 0,
+      lastAssistantItem: null,
+      markQueue: [],
+      responseStartTimestampTwilio: null,
+    };
     const handledCallIds = new Set();
 
     // Open a connection to OpenAI Realtime
@@ -384,7 +432,7 @@ fastify.register(async (app) => {
 
       let output;
       try {
-        output = await runVoiceTool(name, args, { streamSid, callId });
+        output = await runVoiceTool(name, args, { streamSid: callState.streamSid, callId });
       } catch (err) {
         output = {
           success: false,
@@ -415,11 +463,16 @@ fastify.register(async (app) => {
       const sessionUpdate = {
         type: "session.update",
         session: {
-          turn_detection: { type: "server_vad" },
+          turn_detection: {
+            type: "server_vad",
+            threshold: 0.6,              // higher = less sensitive to background noise (default 0.5)
+            prefix_padding_ms: 300,      // audio to include before speech start
+            silence_duration_ms: 500,    // wait 500ms of silence before finalizing turn (default 200)
+          },
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
           voice: voiceConfig.voice,
-          instructions: `${voiceConfig.system_prompt}\n\nTOOL RULES: When booking an appointment, collect all required fields first, then call schedule_visit. Never claim an appointment is booked unless the tool returns success. If tool returns an error, explain clearly and ask for corrected info or another time.`,
+          instructions: `${voiceConfig.system_prompt}\n\nTOOL RULES:\n- When booking an appointment, collect all required fields first, then call schedule_visit. Never claim an appointment is booked unless the tool returns success. If tool returns an error, explain clearly and ask for corrected info or another time.\n- STORE HOURS RULE: If a caller asks whether the store is open, or if you need to mention hours, ALWAYS call the check_store_status tool first. Do NOT rely on any stored information — the tool gives you the real-time answer.\n- After calling check_store_status, relay the result naturally (e.g. "We're open right now until 6 PM" or "We're closed right now but we open tomorrow at 9 AM").`,
           modalities: ["text", "audio"],
           temperature: voiceConfig.temperature,
           tools: VOICE_TOOLS,
@@ -444,27 +497,27 @@ fastify.register(async (app) => {
 
         // Stream audio back to Twilio
         if (response.type === "response.audio.delta" && response.delta) {
-          if (streamSid) {
+          if (callState.streamSid) {
             const audioDelta = {
               event: "media",
-              streamSid,
+              streamSid: callState.streamSid,
               media: { payload: response.delta },
             };
             socket.send(JSON.stringify(audioDelta));
 
-            if (!responseStartTimestampTwilio) {
-              responseStartTimestampTwilio = latestMediaTimestamp;
+            if (callState.responseStartTimestampTwilio == null) {
+              callState.responseStartTimestampTwilio = callState.latestMediaTimestamp;
             }
             if (response.item_id) {
-              lastAssistantItem = response.item_id;
+              callState.lastAssistantItem = response.item_id;
             }
-            sendMark(socket, streamSid);
+            sendMark(socket, callState);
           }
         }
 
-        // Track when assistant finishes speaking (for interruption support)
+        // Handle user interruption — clear Twilio buffer and truncate AI response
         if (response.type === "input_audio_buffer.speech_started") {
-          handleSpeechStartedEvent(socket, openaiWs, streamSid, lastAssistantItem, markQueue, responseStartTimestampTwilio, latestMediaTimestamp);
+          handleSpeechStartedEvent(socket, openaiWs, callState);
         }
 
         if (response.type === "response.function_call_arguments.done") {
@@ -494,7 +547,7 @@ fastify.register(async (app) => {
 
         switch (data.event) {
           case "media":
-            latestMediaTimestamp = data.media.timestamp;
+            callState.latestMediaTimestamp = data.media.timestamp;
             if (openaiWs.readyState === WebSocket.OPEN) {
               openaiWs.send(
                 JSON.stringify({
@@ -506,15 +559,15 @@ fastify.register(async (app) => {
             break;
 
           case "start":
-            streamSid = data.start.streamSid;
-            console.log(`📞 Stream started: ${streamSid}`);
-            latestMediaTimestamp = 0;
-            responseStartTimestampTwilio = null;
+            callState.streamSid = data.start.streamSid;
+            console.log(`📞 Stream started: ${callState.streamSid}`);
+            callState.latestMediaTimestamp = 0;
+            callState.responseStartTimestampTwilio = null;
             break;
 
           case "mark":
-            if (markQueue.length > 0) {
-              markQueue.shift();
+            if (callState.markQueue.length > 0) {
+              callState.markQueue.shift();
             }
             break;
 
@@ -559,26 +612,28 @@ function sendInitialGreeting(openaiWs) {
   openaiWs.send(JSON.stringify({ type: "response.create" }));
 }
 
-function sendMark(socket, streamSid) {
-  if (streamSid) {
+function sendMark(socket, callState) {
+  if (callState.streamSid) {
     const markEvent = {
       event: "mark",
-      streamSid,
+      streamSid: callState.streamSid,
       mark: { name: "responsePart" },
     };
     socket.send(JSON.stringify(markEvent));
+    callState.markQueue.push("responsePart");
   }
 }
 
-function handleSpeechStartedEvent(socket, openaiWs, streamSid, lastAssistantItem, markQueue, responseStartTimestampTwilio, latestMediaTimestamp) {
+function handleSpeechStartedEvent(socket, openaiWs, callState) {
   // User interrupted the AI — clear Twilio's audio buffer
-  if (markQueue.length > 0 && responseStartTimestampTwilio != null) {
-    const elapsedTime = latestMediaTimestamp - responseStartTimestampTwilio;
-    
-    if (lastAssistantItem) {
+  // Only truncate if we are actively streaming audio (marks pending + timestamp set)
+  if (callState.markQueue.length > 0 && callState.responseStartTimestampTwilio != null) {
+    const elapsedTime = callState.latestMediaTimestamp - callState.responseStartTimestampTwilio;
+
+    if (callState.lastAssistantItem) {
       const truncateEvent = {
         type: "conversation.item.truncate",
-        item_id: lastAssistantItem,
+        item_id: callState.lastAssistantItem,
         content_index: 0,
         audio_end_ms: elapsedTime,
       };
@@ -589,12 +644,14 @@ function handleSpeechStartedEvent(socket, openaiWs, streamSid, lastAssistantItem
     socket.send(
       JSON.stringify({
         event: "clear",
-        streamSid,
+        streamSid: callState.streamSid,
       })
     );
 
-    markQueue.length = 0;
-    responseStartTimestampTwilio = null;
+    // Reset state — these mutations propagate because callState is an object reference
+    callState.markQueue.length = 0;
+    callState.responseStartTimestampTwilio = null;
+    callState.lastAssistantItem = null;
   }
 }
 

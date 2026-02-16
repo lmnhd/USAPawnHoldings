@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { TABLES, putItem, scanItems, deleteItem } from "@/lib/dynamodb";
+import { createUnifiedConversationRecord } from "@/lib/conversation-model";
 import { analyzeImage, analyzeImages } from "@/lib/openai";
 import { getAgentConfigBatch } from "@/lib/agent-config";
 
@@ -245,6 +246,37 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
       description: truncatedDescription,
       photo_count: photoUrls.length,
     });
+
+    const appraisalConversation = createUnifiedConversationRecord({
+      conversation_id: `appraise_${appraisalId}`,
+      source: "appraise",
+      channel: "appraise",
+      started_at: now,
+      ended_at: now,
+      metadata: {
+        event: "appraise_submission",
+        appraisal_id: appraisalId,
+        item_category: body.category,
+      },
+      source_metadata: {
+        photo_count: photoUrls.length,
+        labels: photoLabels,
+      },
+      messages: [
+        {
+          role: "user",
+          content: `Appraisal request for ${body.category}. Description: ${truncatedDescription || "(none)"}. Photos: ${photoUrls.length}.`,
+          timestamp: now,
+        },
+        {
+          role: "assistant",
+          content: `Estimated value range: $${valueRange}. ${analysisText}`,
+          timestamp: now,
+        },
+      ],
+    });
+
+    await putItem(TABLES.conversations, appraisalConversation);
 
     return NextResponse.json({
       appraisal_id: appraisalId,

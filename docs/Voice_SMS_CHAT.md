@@ -560,6 +560,57 @@ for zero downtime.
 **Workaround for free tier**: Set up a cron/uptime monitor to ping the health endpoint
 every 14 minutes to prevent spin-down.
 
+#### Wake-Up / Health Check Endpoint
+
+The voice server exposes two health endpoints that can be used to wake the Render
+instance before a demo and verify end-to-end connectivity:
+
+| Endpoint | Purpose |
+|:---|:---|
+| `GET /` | Basic liveness probe. Returns `{ "status": "ok" }`. |
+| `GET /health/store-status` | **Full warm-up probe**. Calls the Vercel store-status API, returns latency + live store hours. |
+
+**How to trigger a wake-up before a demo:**
+
+```bash
+# Simple ping — wakes the Render instance (~30-50s on free tier cold start)
+curl https://usapawn-voice.onrender.com/
+
+# Full warm-up — also pre-warms the Vercel ↔ Render connection and validates store status
+curl https://usapawn-voice.onrender.com/health/store-status
+```
+
+**Expected response from `/health/store-status`:**
+```json
+{
+  "status": "ok",
+  "service": "usapawn-voice",
+  "frontend_url": "https://usapawn.vercel.app",
+  "latency_ms": 245,
+  "store_status": {
+    "open": true,
+    "timezone": "America/New_York",
+    "weekday": "monday",
+    "now_label": "Monday, 2:30 PM ET",
+    "today_schedule": "9:00 AM - 6:00 PM",
+    "message": "We are open now until 6:00 PM ET.",
+    "generated_at": "2026-02-16T19:30:00.000Z"
+  }
+}
+```
+
+**Automated keep-alive** (prevents spin-down entirely):
+- Use [UptimeRobot](https://uptimerobot.com/) (free) or [cron-job.org](https://cron-job.org/)
+- Monitor URL: `https://usapawn-voice.onrender.com/health/store-status`
+- Interval: **Every 14 minutes** (Render spins down after 15 min inactivity)
+- Alert on: `status` field not equal to `"ok"`
+
+**Pre-demo checklist:**
+1. Hit the `/health/store-status` endpoint ~60 seconds before the demo call
+2. Verify `store_status.open` matches expected (check if within business hours)
+3. If `status` is `"error"`, check that `FRONTEND_URL` env var on Render points to the correct Vercel deployment
+4. Make the demo phone call — the instance is now warm and will answer in <2 seconds
+
 ---
 
 ## 7. Issues Encountered & Solutions

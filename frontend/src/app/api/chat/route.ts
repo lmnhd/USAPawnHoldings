@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 import { CATEGORY_TAGS, STORE_HOURS, VAULT_SYSTEM_PROMPT } from "@/lib/constants";
 import { TABLES, putItem, scanItems } from "@/lib/dynamodb";
+import { createUnifiedConversationRecord } from "@/lib/conversation-model";
 import { ChatMessage, createChatCompletion } from "@/lib/openai";
 import { sendSMS } from "@/lib/twilio";
 import { getAgentConfigBatch } from "@/lib/agent-config";
@@ -315,14 +316,16 @@ export async function POST(req: NextRequest) {
         if (call.function.name === "request_form" && (result as { __form_request?: boolean }).__form_request) {
           console.log(`   ✓ Form request detected, returning to frontend`);
           // Save conversation state before returning form
-          await putItem(TABLES.conversations, {
+          const now = new Date().toISOString();
+          const formConversation = createUnifiedConversationRecord({
             conversation_id: conversationId,
+            source: "web_chat",
             channel: "web",
-            messages: [...userMessages, { role: "assistant", content: "[Form Request]" }] as unknown[],
-            started_at: new Date().toISOString(),
-            ended_at: new Date().toISOString(),
-            message_count: userMessages.length + 1,
+            messages: [...userMessages, { role: "assistant", content: "[Form Request]" }] as unknown as Array<Record<string, unknown>>,
+            started_at: now,
+            ended_at: now,
           });
+          await putItem(TABLES.conversations, formConversation);
 
           // Return form spec as JSON for frontend to parse
           const response = streamTextResponse(JSON.stringify(result));
@@ -375,15 +378,17 @@ export async function POST(req: NextRequest) {
           content: finalText,
           image_url: inventoryImageUrl,
         });
-        
-        await putItem(TABLES.conversations, {
+
+        const now = new Date().toISOString();
+        const imageConversation = createUnifiedConversationRecord({
           conversation_id: conversationId,
+          source: "web_chat",
           channel: "web",
-          messages: [...userMessages, { role: "assistant", content: finalText, image_url: inventoryImageUrl }] as unknown[],
-          started_at: new Date().toISOString(),
-          ended_at: new Date().toISOString(),
-          message_count: userMessages.length + 1,
+          messages: [...userMessages, { role: "assistant", content: finalText, image_url: inventoryImageUrl }] as unknown as Array<Record<string, unknown>>,
+          started_at: now,
+          ended_at: now,
         });
+        await putItem(TABLES.conversations, imageConversation);
         
         const response = streamTextResponse(responseWithImage);
         response.headers.set("X-Conversation-ID", conversationId);
@@ -404,14 +409,17 @@ export async function POST(req: NextRequest) {
     console.log(`\n✅ FINAL RESPONSE: "${finalText?.substring(0, 150)}${finalText && finalText.length > 150 ? '...' : ''}"`);
     console.log(`💾 SAVING conversation ${conversationId} with ${completeMessages.length} messages to DynamoDB`);
 
-    await putItem(TABLES.conversations, {
+    const now = new Date().toISOString();
+    const unifiedConversation = createUnifiedConversationRecord({
       conversation_id: conversationId,
+      source: "web_chat",
       channel: "web",
-      messages: completeMessages as unknown[],
-      started_at: new Date().toISOString(),
-      ended_at: new Date().toISOString(),
-      message_count: completeMessages.length,
+      messages: completeMessages as unknown as Array<Record<string, unknown>>,
+      started_at: now,
+      ended_at: now,
     });
+
+    await putItem(TABLES.conversations, unifiedConversation);
     console.log(`✅ Conversation ${conversationId} saved successfully`);
     console.log(`${'='.repeat(70)}\n`);
 

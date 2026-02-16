@@ -62,13 +62,13 @@ export async function GET() {
   try {
     const storeStatus = getStoreStatusInEastern(STORE_HOURS);
     const statusContext = [
-      "REAL-TIME STORE STATUS (authoritative):",
+      "STORE HOURS REFERENCE (for general awareness only):",
       `- Time zone: ${storeStatus.timezone}`,
-      `- Current local time: ${storeStatus.now_label}`,
-      `- Today's schedule: ${storeStatus.today_schedule}`,
-      `- Open now: ${storeStatus.open ? "Yes" : "No"}`,
-      `- Customer-facing status line: ${storeStatus.message}`,
-      "- Never claim the store is closed unless this status block says Open now: No.",
+      `- Approximate local time at prompt build: ${storeStatus.now_label}`,
+      `- Today's posted schedule: ${storeStatus.today_schedule}`,
+      `- IMPORTANT: This status was computed when the prompt was built and may be stale.`,
+      `- If a caller asks whether the store is open/closed, ALWAYS call the check_store_status tool for a live answer.`,
+      `- Do NOT say \"we're closed\" or \"we're open\" based on this block alone.`,
     ].join("\n");
 
     // Fetch all chat + voice config from DynamoDB in parallel
@@ -153,13 +153,11 @@ export async function GET() {
 
     const fallbackStatus = getStoreStatusInEastern(STORE_HOURS);
     const fallbackStatusContext = [
-      "REAL-TIME STORE STATUS (authoritative):",
+      "STORE HOURS REFERENCE:",
       `- Time zone: ${fallbackStatus.timezone}`,
-      `- Current local time: ${fallbackStatus.now_label}`,
-      `- Today's schedule: ${fallbackStatus.today_schedule}`,
-      `- Open now: ${fallbackStatus.open ? "Yes" : "No"}`,
-      `- Customer-facing status line: ${fallbackStatus.message}`,
-      "- Never claim the store is closed unless this status block says Open now: No.",
+      `- Approximate local time: ${fallbackStatus.now_label}`,
+      `- Today's posted schedule: ${fallbackStatus.today_schedule}`,
+      `- If a caller asks whether the store is open/closed, call the check_store_status tool for a live answer.`,
     ].join("\n");
 
     // Fallback: return the hardcoded defaults so calls never fail
