@@ -12,6 +12,7 @@ const {
   OPENAI_API_KEY,
   PORT = "5050",
   VOICE = "alloy",
+  FRONTEND_URL = "https://usapawn.vercel.app",
 } = process.env;
 
 if (!OPENAI_API_KEY) {
@@ -22,35 +23,55 @@ if (!OPENAI_API_KEY) {
 const OPENAI_REALTIME_URL =
   "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
 
-// The identity prompt the AI uses when answering the phone
-const SYSTEM_MESSAGE = `You are Vault, the after-hours AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
+// ─────────────────────────────────────────────────────────────
+// DYNAMIC PROMPT — fetched from Vercel API, cached 5 minutes
+// Falls back to a hardcoded default if API is unreachable.
+// ─────────────────────────────────────────────────────────────
 
-PERSONALITY:
-- Warm, friendly, and professional — like talking to someone who genuinely wants to help.
-- Speak concisely. Phone conversations should be natural, not like reading a script.
-- Use a conversational tone — contractions are fine, short sentences preferred.
+const FALLBACK_SYSTEM_MESSAGE = `You are Vault, the after-hours AI voice assistant for USA Pawn Holdings in Jacksonville, Florida.
+You are warm, friendly, and professional. Keep responses short — this is a phone call.
+Store hours: Mon-Fri 9 AM – 6 PM, Sat 9 AM – 5 PM, Closed Sunday.
+Address: 6132 Merrill Rd, Suite 1, Jacksonville, FL 32277.
+Phone: (904) 744-5611. Pawn terms: 25% interest, 30-day term.
+Tell callers they can text a photo to this number for an instant AI appraisal.
+Greet callers warmly. Take messages (name + number) if you can't help directly.`;
 
-STORE INFO:
-- Address: 6132 Merrill Rd, Suite 1, Jacksonville, FL 32277
-- Phone: (904) 744-5611
-- Hours: Monday-Friday 9 AM – 6 PM, Saturday 9 AM – 5 PM, Sunday Closed
-- Pawn loan terms: 25% interest, 30-day term, usually 25-33% of resale value
+let cachedConfig = {
+  system_prompt: FALLBACK_SYSTEM_MESSAGE,
+  voice: VOICE,
+  temperature: 0.8,
+  fetched_at: 0,
+};
 
-WHAT YOU CAN DO:
-- Answer questions about the store (hours, location, what we buy/sell, loan terms).
-- Provide rough appraisal guidance (tell them to text a photo to this number or visit usapawn.vercel.app/appraise for a photo-based AI estimate).
-- Let them know they can text this number anytime for an instant AI appraisal via photo.
-- Take messages — ask for their name and number, say the MANAGER will call back next business day.
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-WHAT YOU CANNOT DO:
-- Finalize prices or make binding offers — always say "come in for an official appraisal."
-- Access account information or pawn ticket status.
+async function getVoiceConfig() {
+  const now = Date.now();
+  if (now - cachedConfig.fetched_at < CACHE_TTL_MS) {
+    return cachedConfig;
+  }
 
-GREETING (first thing you say):
-"Thanks for calling USA Pawn Holdings! We're currently closed, but I'm the after-hours AI assistant and I'd be happy to help. What can I do for you?"
+  try {
+    const res = await fetch(`${FRONTEND_URL}/api/agent-config/voice`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
 
-CLOSING:
-If the conversation wraps up, say: "Thanks for calling! Remember, you can text a photo of any item to this number for an instant estimate. Have a great night!"`;
+    cachedConfig = {
+      system_prompt: data.system_prompt || FALLBACK_SYSTEM_MESSAGE,
+      voice: data.voice || VOICE,
+      temperature: data.temperature ?? 0.8,
+      fetched_at: now,
+    };
+    console.log(`✅ Voice config refreshed (source: ${data.source})`);
+  } catch (err) {
+    console.warn("⚠️  Failed to fetch voice config from API, using cached/fallback:", err.message);
+    // Keep using whatever we had cached — don't reset fetched_at so we retry next call
+  }
+
+  return cachedConfig;
+}
 
 // Events we want to log from OpenAI
 const LOG_EVENT_TYPES = [
@@ -90,8 +111,12 @@ fastify.all("/incoming-call", async (request, reply) => {
 // WEBSOCKET: Twilio Media Stream ↔ OpenAI Realtime
 // ─────────────────────────────────────────────────────────────
 fastify.register(async (app) => {
-  app.get("/media-stream", { websocket: true }, (socket, req) => {
+  app.get("/media-stream", { websocket: true }, async (socket, req) => {
     console.log("📞 Twilio Media Stream connected");
+
+    // Fetch current voice config from dashboard (cached 5 min)
+    const voiceConfig = await getVoiceConfig();
+    console.log(`🎙️  Using voice: ${voiceConfig.voice}, temp: ${voiceConfig.temperature}`);
 
     let streamSid = null;
     let latestMediaTimestamp = 0;
@@ -117,10 +142,10 @@ fastify.register(async (app) => {
           turn_detection: { type: "server_vad" },
           input_audio_format: "g711_ulaw",
           output_audio_format: "g711_ulaw",
-          voice: VOICE,
-          instructions: SYSTEM_MESSAGE,
+          voice: voiceConfig.voice,
+          instructions: voiceConfig.system_prompt,
           modalities: ["text", "audio"],
-          temperature: 0.8,
+          temperature: voiceConfig.temperature,
         },
       };
 

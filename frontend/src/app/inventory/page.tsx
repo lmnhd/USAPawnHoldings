@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import InventoryGrid, { InventoryItem } from '@/components/InventoryGrid';
@@ -25,6 +25,14 @@ const PAGE_SIZE = 20;
 /* ── Page ── */
 
 export default function InventoryPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-vault-black" />}>
+      <InventoryContent />
+    </Suspense>
+  );
+}
+
+function InventoryContent() {
   const searchParams = useSearchParams();
   const [category, setCategory] = useState('All');
   const [items, setItems] = useState<InventoryItem[]>([]);

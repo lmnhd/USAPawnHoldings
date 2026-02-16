@@ -19,6 +19,7 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconInfoCircle,
+  IconPhone,
 } from '@tabler/icons-react';
 
 /* ──────────────────────────────────────────────────────
@@ -81,6 +82,20 @@ For each item, identify:
 
 Be specific and thorough. When uncertain, state your confidence level.
 Always consider current market conditions and resale potential.`;
+
+const DEFAULT_VOICE_ADDENDUM = `VOICE CHANNEL INSTRUCTIONS (you are on a phone call, not text chat):
+- You are answering the phone. Speak naturally as if having a real conversation.
+- Keep responses SHORT — 1-2 sentences max. Long monologues are painful on the phone.
+- Do NOT reference web links, URLs, or "/appraise" pages — the caller can't click.
+- Instead, say "text a photo of the item to this number" for appraisals.
+- If someone wants to schedule a visit, take their name and preferred day/time.
+- If asked about something you can't help with, offer to take a message (name + number).
+
+GREETING (first thing you say):
+"Thanks for calling USA Pawn Holdings! We're currently closed, but I'm the after-hours AI assistant and I'd be happy to help. What can I do for you?"
+
+CLOSING:
+When wrapping up, say: "Thanks for calling! Remember, you can text a photo of any item to this number for an instant estimate. Have a great night!"`;
 
 /* ──────────────────────────────────────────────────────
    Section Components
@@ -422,6 +437,13 @@ export default function AgentConfigPanel() {
             <IconDiamond className="w-4 h-4" />
             Appraisal Agent
           </TabsTrigger>
+          <TabsTrigger
+            value="voice"
+            className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold data-[state=active]:bg-vault-gold/15 data-[state=active]:text-vault-gold data-[state=active]:border-vault-gold/30 data-[state=active]:border data-[state=active]:shadow-sm text-vault-text-muted font-body transition-all"
+          >
+            <IconPhone className="w-4 h-4" />
+            Voice Agent
+          </TabsTrigger>
         </TabsList>
 
         {/* ━━━━━━━━━━ Chat Agent ━━━━━━━━━━ */}
@@ -726,6 +748,169 @@ export default function AgentConfigPanel() {
                 value={getValue('agent_appraisal_system_prompt')}
                 onChange={(v) => setValue('agent_appraisal_system_prompt', v)}
                 placeholder="Leave empty to use the default appraisal prompt…"
+                rows={10}
+                mono
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ━━━━━━━━━━ Voice Agent ━━━━━━━━━━ */}
+        <TabsContent value="voice" className="mt-6 space-y-6">
+          {/* Info Banner */}
+          <div className="flex items-start gap-3 rounded-lg border border-vault-gold/20 bg-vault-gold/5 px-4 py-3">
+            <IconInfoCircle className="w-5 h-5 text-vault-gold mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm text-vault-text-light font-semibold font-body">Voice Agent Configuration</p>
+              <p className="text-xs text-vault-text-muted font-body mt-0.5 leading-relaxed">
+                The voice agent answers phone calls after hours using the <strong className="text-vault-text-light">OpenAI Realtime API</strong>.
+                It <strong className="text-vault-text-light">inherits the Chat Agent&apos;s base prompt</strong> (rules, tone, special info) and layers
+                phone-specific instructions on top. Changes to the Chat Agent flow through here automatically.
+              </p>
+            </div>
+          </div>
+
+          {/* Inheritance Info */}
+          <div className="flex items-start gap-3 rounded-lg border border-vault-info/20 bg-vault-info/5 px-4 py-3">
+            <IconRobot className="w-5 h-5 text-vault-info mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="text-xs text-vault-text-light font-semibold font-body">How the prompt is built:</p>
+              <ol className="text-xs text-vault-text-muted font-body leading-relaxed list-decimal list-inside space-y-0.5">
+                <li>Chat Agent base prompt (or your Chat override)</li>
+                <li>+ Voice Addendum below (phone-specific rules)</li>
+                <li>+ Chat tone, rules, and special info</li>
+                <li>+ Voice-specific rules</li>
+              </ol>
+              <p className="text-[10px] text-vault-text-muted font-mono mt-1">
+                Config refreshes every 5 minutes — no redeployment needed.
+              </p>
+            </div>
+          </div>
+
+          {/* Default Voice Addendum Viewer */}
+          <DefaultPromptViewer
+            title="View Default Voice Addendum (read-only)"
+            prompt={DEFAULT_VOICE_ADDENDUM}
+            isOverridden={getValue('agent_voice_addendum').length > 0}
+          />
+
+          {/* Voice & Personality */}
+          <Card className="rounded-xl border-vault-border bg-vault-surface-elevated">
+            <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+              <IconPhone className="w-4 h-4 text-vault-gold" />
+              <CardTitle className="font-display text-base font-bold text-vault-text-light">Voice & Personality</CardTitle>
+            </CardHeader>
+            <Separator className="bg-vault-border" />
+            <CardContent className="p-5 space-y-5">
+              <ConfigSelect
+                label="AI Voice"
+                description="The voice the AI uses when speaking on the phone. Each has a unique personality."
+                value={getValue('agent_voice_voice') || 'alloy'}
+                onChange={(v) => setValue('agent_voice_voice', v)}
+                options={[
+                  { value: 'alloy', label: 'Alloy', description: 'Neutral, balanced' },
+                  { value: 'echo', label: 'Echo', description: 'Warm, male' },
+                  { value: 'fable', label: 'Fable', description: 'Expressive, storytelling' },
+                  { value: 'onyx', label: 'Onyx', description: 'Deep, authoritative' },
+                  { value: 'nova', label: 'Nova', description: 'Warm, female' },
+                  { value: 'shimmer', label: 'Shimmer', description: 'Bright, friendly' },
+                ]}
+              />
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-vault-text-light font-body">Temperature</label>
+                <p className="text-xs text-vault-text-muted font-body leading-relaxed">
+                  Controls creativity/randomness. Lower = more predictable, higher = more natural/varied.
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.1"
+                    value={getValue('agent_voice_temperature') || '0.8'}
+                    onChange={(e) => setValue('agent_voice_temperature', e.target.value)}
+                    className="flex-1 accent-vault-gold"
+                  />
+                  <span className="text-sm font-mono text-vault-gold min-w-[2.5rem] text-center">
+                    {getValue('agent_voice_temperature') || '0.8'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[10px] text-vault-text-muted font-mono px-1">
+                  <span>Predictable</span>
+                  <span>Natural</span>
+                </div>
+              </div>
+
+              <ConfigTextarea
+                label="Custom Greeting"
+                description="Override the greeting the AI says when it first answers the phone. Leave empty for default."
+                value={getValue('agent_voice_greeting')}
+                onChange={(v) => setValue('agent_voice_greeting', v)}
+                placeholder={`e.g. "Hey, you've reached USA Pawn Holdings! We're closed right now but I can help. What's up?"`}
+                rows={2}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Phone-Specific Instructions */}
+          <Card className="rounded-xl border-vault-border bg-vault-surface-elevated">
+            <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+              <IconShieldCheck className="w-4 h-4 text-vault-gold" />
+              <CardTitle className="font-display text-base font-bold text-vault-text-light">Phone-Specific Instructions</CardTitle>
+            </CardHeader>
+            <Separator className="bg-vault-border" />
+            <CardContent className="p-5 space-y-5">
+              <ConfigTextarea
+                label="Voice Addendum Override"
+                description="Replaces the default phone-specific instructions. These are layered on top of the Chat Agent's base prompt. Leave empty to use the default."
+                value={getValue('agent_voice_addendum')}
+                onChange={(v) => setValue('agent_voice_addendum', v)}
+                placeholder="Leave empty to use the default voice addendum…"
+                rows={8}
+                mono
+              />
+
+              <ConfigTextarea
+                label="Additional Voice Rules"
+                description="Extra rules only for phone conversations. These are added on top of everything else."
+                value={getValue('agent_voice_rules')}
+                onChange={(v) => setValue('agent_voice_rules', v)}
+                placeholder={'e.g.\n- Never mention competitor pawn shops by name\n- If they ask about firearms, always say "come in during business hours"\n- Mention the Saturday special if they ask about gold'}
+                rows={5}
+                mono
+              />
+            </CardContent>
+          </Card>
+
+          {/* Full System Prompt Override */}
+          <Card className="rounded-xl border-vault-danger/20 bg-vault-surface-elevated">
+            <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+              <IconAdjustments className="w-4 h-4 text-vault-danger" />
+              <CardTitle className="font-display text-base font-bold text-vault-text-light">
+                Advanced: Full Prompt Override
+              </CardTitle>
+              <Badge className="ml-auto bg-vault-danger/15 text-vault-danger border-vault-danger/30 text-[10px]">
+                Expert
+              </Badge>
+            </CardHeader>
+            <Separator className="bg-vault-border" />
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-start gap-3 rounded-lg border border-vault-warning/20 bg-vault-warning/5 px-4 py-3">
+                <IconAlertTriangle className="w-4 h-4 text-vault-warning mt-0.5 shrink-0" />
+                <p className="text-xs text-vault-text-muted font-body leading-relaxed">
+                  This <strong className="text-vault-warning">completely replaces everything</strong> — the chat base prompt,
+                  voice addendum, all rules, and special info. The voice agent will use ONLY this text.
+                  Chat Agent changes will <strong className="text-vault-warning">no longer flow through</strong>.
+                </p>
+              </div>
+
+              <ConfigTextarea
+                label="Voice System Prompt Override"
+                description="Leave empty to use the assembled prompt (recommended). When set, this is the ONLY instruction the voice AI receives."
+                value={getValue('agent_voice_system_prompt')}
+                onChange={(v) => setValue('agent_voice_system_prompt', v)}
+                placeholder="Leave empty to use the assembled chat + voice prompt…"
                 rows={10}
                 mono
               />

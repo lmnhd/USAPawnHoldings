@@ -27,6 +27,14 @@ const AGENT_CONFIG_KEYS = {
   agent_appraisal_conservatism: "moderate", // conservative | moderate | generous
   agent_appraisal_haircut: "0",              // dollar amount to subtract from appraisal (breathing room)
   agent_appraisal_focus_categories: "",    // comma-separated priority categories
+
+  // ── Voice Agent ──
+  agent_voice_system_prompt: "",           // full override — empty = assembled from chat + addendum
+  agent_voice_addendum: "",                // phone-specific instructions layered on chat prompt
+  agent_voice_rules: "",                   // additional voice-only rules
+  agent_voice_voice: "alloy",             // OpenAI voice: alloy | echo | fable | onyx | nova | shimmer
+  agent_voice_temperature: "0.8",         // 0.0-1.0 creativity
+  agent_voice_greeting: "",               // custom greeting override
 } as const;
 
 type AgentConfigKey = keyof typeof AGENT_CONFIG_KEYS;
