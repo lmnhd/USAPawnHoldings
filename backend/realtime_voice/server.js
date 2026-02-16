@@ -160,6 +160,7 @@ async function scheduleVisitFromVoice(args, context = {}) {
   const normalizedEstimatedValue = normalizeEstimatedValue(args.estimated_value);
 
   const payload = {
+    source: "voice", // Explicitly set source for dashboard filtering
     customer_name: String(args.customer_name ?? "").trim(),
     phone: normalizedPhone,
     preferred_time: normalizedPreferredTime,

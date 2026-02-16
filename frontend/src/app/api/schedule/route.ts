@@ -9,6 +9,7 @@ type AppointmentRecord = {
   lead_id: string;
   appointment_id: string;
   type: 'appointment';
+  source: string;
   customer_name: string;
   phone: string;
   preferred_time: string;
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
       lead_id: randomUUID(),
       appointment_id: randomUUID(),
       type: 'appointment',
+      source: body?.source ?? 'voice', // Add source field (voice by default)
       customer_name: customerName,
       phone,
       preferred_time: preferredTime,
