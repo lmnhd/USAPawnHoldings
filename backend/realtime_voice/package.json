@@ -1,6 +1,7 @@
 {
   "name": "usapawn-voice-server",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "description": "USA Pawn Holdings — Realtime Voice AI (OpenAI Realtime API + Twilio Media Streams)",
   "main": "server.js",
