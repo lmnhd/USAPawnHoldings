@@ -19,6 +19,8 @@ How about a system for entering new items into inventory using a phone, take ima
 
  - Amazon store automation
 
+ - add auto tracking/delete from inventory upon sale.
+
 
 
 # Test basic health

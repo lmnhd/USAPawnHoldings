@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { normalizeTagList } from '@/lib/tag-governance';
 import { motion, AnimatePresence } from 'motion/react';
+import ProductCardDialog, { type ProductCardData } from '@/components/ProductCardDialog';
 import {
   IconEdit,
   IconTrash,
@@ -49,6 +50,7 @@ export default function DashboardInventoryManager() {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+  const [selectedProductCard, setSelectedProductCard] = useState<ProductCardData | null>(null);
 
   // Fetch inventory
   const fetchInventory = async () => {
@@ -260,11 +262,18 @@ export default function DashboardInventoryManager() {
                     {/* Thumbnail */}
                     <div className="relative aspect-video rounded-lg overflow-hidden bg-vault-black">
                       {item.images && item.images.length > 0 ? (
-                        <img
-                          src={item.images[0]}
-                          alt={item.description}
-                          className="w-full h-full object-cover"
-                        />
+                        <button
+                          type="button"
+                          className="w-full h-full"
+                          onClick={() => setSelectedProductCard(item)}
+                          aria-label={`Open product card for ${item.brand || 'inventory item'}`}
+                        >
+                          <img
+                            src={item.images[0]}
+                            alt={item.description}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
                       ) : (
                         <div className="flex items-center justify-center h-full text-vault-text-muted">
                           <IconPhoto className="h-12 w-12 opacity-30" />
@@ -322,6 +331,9 @@ export default function DashboardInventoryManager() {
                           {item.images.length} images
                         </p>
                       )}
+                      <p className="text-[10px] text-vault-text-muted uppercase tracking-[0.12em]">
+                        Tap image for product card
+                      </p>
                     </div>
 
                     {/* Actions */}
@@ -558,6 +570,14 @@ export default function DashboardInventoryManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProductCardDialog
+        open={Boolean(selectedProductCard)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedProductCard(null);
+        }}
+        product={selectedProductCard}
+      />
     </>
   );
 }

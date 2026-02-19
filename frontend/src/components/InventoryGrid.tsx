@@ -111,14 +111,29 @@ function ItemCard({ item, onImageClick }: { item: InventoryItem; onImageClick: (
   const name = itemDisplayName(item);
 
   return (
-    <Card className="group relative rounded-2xl bg-vault-surface-elevated border-vault-border overflow-hidden hover:border-vault-red/50 hover:shadow-vault hover:shadow-vault-red/5 transition-all duration-300 hover:scale-[1.02]">
+    <Card
+      className="group relative rounded-2xl bg-vault-surface-elevated border-vault-border overflow-hidden hover:border-vault-red/50 hover:shadow-vault hover:shadow-vault-red/5 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+      onClick={() => onImageClick(item)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onImageClick(item);
+        }
+      }}
+      aria-label={`Open product card for ${name}`}
+    >
       {/* Image */}
       <div className="relative aspect-[4/3] bg-vault-surface overflow-hidden">
         {img ? (
           <button
             type="button"
             className="w-full h-full text-left"
-            onClick={() => onImageClick(item)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onImageClick(item);
+            }}
             aria-label={`Open product card for ${name}`}
           >
             <img
@@ -156,6 +171,10 @@ function ItemCard({ item, onImageClick }: { item: InventoryItem; onImageClick: (
             {item.description}
           </p>
         )}
+
+        <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-vault-text-muted">
+          Tap for full product card
+        </p>
 
         <Separator className="mt-4 bg-vault-border" />
 

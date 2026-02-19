@@ -7,26 +7,44 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 export interface Lead {
   lead_id: string;
+  appointment_id?: string;
   source?: string;
+  source_channel?: string;
+  contact_method?: string;
   type?: string;
   customer_name?: string;
   phone?: string;
   item_description: string;
   estimated_value?: number;
   status: string;
+  priority?: string;
+  notes?: string;
+  photo_url?: string;
   created_at?: string;
   timestamp?: string;
+  appointment_time?: string;
+  preferred_time?: string;
+  scheduled_time?: string;
+  appraisal_id?: string;
+  value_range?: string;
+  item_category?: string;
 }
 
 interface DashboardLeadFeedProps {
   leads: Lead[];
   loading?: boolean;
+  onLeadSelect?: (lead: Lead) => void;
+  selectedLeadId?: string;
 }
 
 const SOURCE_CONFIG: Record<string, { icon: string; label: string; bg: string; text: string }> = {
+  web: { icon: '🌐', label: 'Web', bg: 'bg-vault-gold/20', text: 'text-vault-gold' },
   chat: { icon: '💬', label: 'Chat', bg: 'bg-blue-500/20', text: 'text-blue-400' },
+  voice: { icon: '📞', label: 'Voice', bg: 'bg-vault-warning/20', text: 'text-vault-warning' },
   appraisal: { icon: '📸', label: 'Appraisal', bg: 'bg-vault-gold/20', text: 'text-vault-gold' },
+  appraise_page: { icon: '📸', label: 'Appraisal', bg: 'bg-vault-gold/20', text: 'text-vault-gold' },
   sms: { icon: '📱', label: 'SMS', bg: 'bg-vault-success/20', text: 'text-vault-success' },
+  mms: { icon: '🖼️', label: 'MMS', bg: 'bg-vault-success/20', text: 'text-vault-success' },
   phone: { icon: '📞', label: 'Phone', bg: 'bg-purple-500/20', text: 'text-purple-400' },
 };
 
@@ -54,6 +72,31 @@ function getRelativeTime(dateStr: string): string {
   return `${days}d ago`;
 }
 
+function formatDateTime(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
+    return dateStr;
+  }
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getContactMethod(lead: Lead): string {
+  const method = String(lead.contact_method ?? '').trim().toLowerCase();
+  if (method) return method;
+
+  const source = String(lead.source ?? '').toLowerCase();
+  if (source.includes('sms') || source.includes('mms') || source.includes('text')) return 'sms';
+  if (source.includes('voice') || source.includes('phone') || source.includes('call')) return 'phone';
+  if (source.includes('chat')) return 'chat';
+  return 'web';
+}
+
 function SkeletonCard() {
   return (
     <Card className="p-4 border rounded-xl bg-vault-surface border-vault-gold/5">
@@ -73,7 +116,12 @@ function SkeletonCard() {
   );
 }
 
-export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedProps) {
+export default function DashboardLeadFeed({
+  leads,
+  loading,
+  onLeadSelect,
+  selectedLeadId,
+}: DashboardLeadFeedProps) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -97,17 +145,20 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
   }
 
   return (
-    <ScrollArea className="max-h-[600px]? scroll-pb-20">
+    <ScrollArea className="max-h-[600px] scroll-pb-20">
       <div className="pb-20 pr-1 space-y-3">
         {leads.map((lead) => {
           // Distinguish between appointments and appraisals
           const isAppointment = lead.type === 'appointment';
-          const isAppraisal = lead.source === 'appraise_page';
+          const isAppraisal = lead.source === 'appraise_page' || Boolean(lead.appraisal_id);
+          const sourceKey = String(lead.source ?? 'chat').toLowerCase();
           const source = isAppointment 
             ? { icon: '📅', label: 'Appointment', bg: 'bg-vault-success/20', text: 'text-vault-success' }
-            : SOURCE_CONFIG[lead.source ?? 'chat'] ?? SOURCE_CONFIG.chat;
+            : SOURCE_CONFIG[sourceKey] ?? SOURCE_CONFIG.chat;
           const status = STATUS_CONFIG[lead.status] ?? STATUS_CONFIG.new;
           const dateStr = lead.created_at ?? lead.timestamp ?? '';
+          const appointmentTime = lead.scheduled_time ?? lead.appointment_time ?? lead.preferred_time;
+          const method = getContactMethod(lead);
 
           // Different border colors for appointments vs appraisals
           const borderColor = isAppointment 
@@ -116,10 +167,14 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
             ? 'border-vault-gold/20 hover:border-vault-gold/50'
             : 'border-vault-gold/5 hover:border-vault-gold/30';
 
+          const isSelected = selectedLeadId === lead.lead_id;
+
           return (
-            <Card
+            <button
               key={lead.lead_id}
-              className={`relative pb-10 transition-all duration-200 border cursor-pointer group rounded-xl bg-vault-surface ${borderColor}`}
+              type="button"
+              onClick={() => onLeadSelect?.(lead)}
+              className={`w-full text-left relative pb-10 transition-all duration-200 border group rounded-xl bg-vault-surface ${borderColor} ${isSelected ? 'ring-2 ring-vault-gold/40' : ''}`}
             >
               <CardContent className="p-4">
                 {/* Top Row — Name + Source Badge */}
@@ -127,19 +182,48 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
                   <h4 className="text-sm font-semibold truncate font-body text-vault-text-light">
                     {lead.customer_name || 'Anonymous'}
                   </h4>
-                  <Badge
-                    variant="secondary"
-                    className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${source.bg} ${source.text}`}
-                  >
-                    <span aria-hidden="true">{source.icon}</span>
-                    {source.label}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {lead.photo_url && (
+                      <div className="w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
+                        <img
+                          src={lead.photo_url}
+                          alt="Appraisal thumbnail"
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                    )}
+                    <Badge
+                      variant="secondary"
+                      className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${source.bg} ${source.text}`}
+                    >
+                      <span aria-hidden="true">{source.icon}</span>
+                      {source.label}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Item Description */}
                 <p className="mb-3 text-sm leading-snug text-vault-text-muted font-body line-clamp-2">
                   {lead.item_description}
                 </p>
+
+                {/* Mid Row — Method + Appointment Time */}
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <Badge
+                    variant="secondary"
+                    className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-surface-elevated text-vault-text-muted"
+                  >
+                    Method: {method}
+                  </Badge>
+                  {appointmentTime && (
+                    <Badge
+                      variant="secondary"
+                      className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-success/15 text-vault-success"
+                    >
+                      {formatDateTime(appointmentTime) ?? appointmentTime}
+                    </Badge>
+                  )}
+                </div>
 
                 {/* Bottom Row — Value, Status, Time */}
                 <div className="flex items-center justify-between gap-2">
@@ -167,7 +251,7 @@ export default function DashboardLeadFeed({ leads, loading }: DashboardLeadFeedP
                 {/* Hover gold accent */}
                 <div className="absolute inset-y-0 left-0 w-0.5 rounded-l-xl bg-vault-gold opacity-0 group-hover:opacity-100 transition-opacity" />
               </CardContent>
-            </Card>
+            </button>
           );
         })}
       </div>

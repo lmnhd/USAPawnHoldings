@@ -16,6 +16,8 @@ type AppointmentRecord = {
   scheduled_time: string;
   item_description: string;
   estimated_value?: number;
+  appraisal_id?: string;
+  photo_url?: string;
   confirmation_code: string;
   status: AppointmentStatus;
   timestamp: string;
@@ -25,8 +27,9 @@ type AppointmentRecord = {
 };
 
 const LEADS_TABLE = 'USA_Pawn_Leads';
-const dynamodb = dynamodbLib as unknown as Record<string, (...args: any[]) => Promise<any>>;
-const twilio = twilioLib as unknown as Record<string, (...args: any[]) => Promise<any>>;
+type AsyncUnknownFn = (...args: unknown[]) => Promise<unknown>;
+const dynamodb = dynamodbLib as unknown as Record<string, AsyncUnknownFn>;
+const twilio = twilioLib as unknown as Record<string, AsyncUnknownFn>;
 
 async function scanAppointments(): Promise<AppointmentRecord[]> {
   let records: AppointmentRecord[] = [];
@@ -158,19 +161,26 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const source = String(body?.source ?? 'voice').toLowerCase();
     const appointment: AppointmentRecord = {
       lead_id: randomUUID(),
       appointment_id: randomUUID(),
       type: 'appointment',
-      source: body?.source ?? 'voice', // Add source field (voice by default)
+      source,
+      source_channel: source,
+      contact_method: source.includes('voice') || source.includes('phone') ? 'phone' : source.includes('sms') ? 'sms' : 'web',
       customer_name: customerName,
       phone,
       preferred_time: preferredTime,
       scheduled_time: preferredTime,
+      appointment_time: preferredTime,
       item_description: itemDescription,
       estimated_value: body?.estimated_value != null ? Number(body.estimated_value) : undefined,
+      appraisal_id: body?.appraisal_id ? String(body.appraisal_id) : undefined,
+      photo_url: body?.photo_url ? String(body.photo_url) : undefined,
       confirmation_code: generateConfirmationCode(),
       status: 'pending',
+      created_at: now,
       timestamp: now,
       updated_at: now,
       sms_sent: false,

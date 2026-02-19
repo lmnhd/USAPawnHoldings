@@ -227,6 +227,7 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
 
     const appraisalId = randomUUID();
     const now = new Date().toISOString();
+    const primaryPhotoUrl = photoUrls[0] ?? null;
     
     // Truncate description to fit within DynamoDB 400KB item limit
     const maxDescriptionLength = 500;
@@ -245,6 +246,7 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
       timestamp: now,
       description: truncatedDescription,
       photo_count: photoUrls.length,
+      photo_url: primaryPhotoUrl,
     });
 
     const appraisalConversation = createUnifiedConversationRecord({
@@ -280,6 +282,7 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
 
     return NextResponse.json({
       appraisal_id: appraisalId,
+      photo_url: primaryPhotoUrl,
       item_category: body.category,
       metal_type: metalType,
       estimated_value: estimatedValue,

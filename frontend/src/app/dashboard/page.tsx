@@ -8,15 +8,12 @@ import {
   IconChartBar,
   IconUsers,
   IconCoin,
-  IconAlertTriangle,
   IconAntenna,
   IconClockHour4,
   IconMessage,
   IconRobot,
   IconLayoutDashboard,
-  IconActivity,
   IconPhoto,
-  IconUserPlus,
   IconTrash,
 } from '@tabler/icons-react';
 import ComplianceAlerts, { type ComplianceAlert } from '@/components/ComplianceAlerts';
@@ -30,7 +27,13 @@ import StaffOnboarding from '@/components/StaffOnboarding';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import Image from 'next/image';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 /* ------------------------------------------------------------------
    Bento Metric Skeletons — animated dashboard headers
@@ -42,10 +45,10 @@ const SkeletonLeadPulse = ({ value }: { value: string | number }) => {
       initial="initial"
       animate="animate"
       whileHover="hover"
-      className="flex flex-1 w-full h-full min-h-[6rem] flex-col justify-center gap-2 p-3"
+      className="flex flex-1 w-full h-full min-h-[5rem] flex-col justify-center gap-1.5 p-2"
     >
-      <div className="mb-2 text-center">
-        <span className="font-mono text-4xl font-bold text-vault-red">{value}</span>
+      <div className="mb-1 text-center">
+        <span className="font-mono text-3xl font-bold text-vault-red">{value}</span>
       </div>
       {widths.map((w, i) => (
         <motion.div
@@ -53,7 +56,7 @@ const SkeletonLeadPulse = ({ value }: { value: string | number }) => {
           initial={{ width: 0 }}
           animate={{ width: `${w}%` }}
           transition={{ duration: 0.5, delay: i * 0.08 }}
-          className="h-2 rounded-full bg-gradient-to-r from-vault-red/60 to-vault-red/20"
+          className="h-1.5 rounded-full bg-gradient-to-r from-vault-red/60 to-vault-red/20"
         />
       ))}
     </motion.div>
@@ -63,7 +66,7 @@ const SkeletonLeadPulse = ({ value }: { value: string | number }) => {
 const SkeletonStaffActive = ({ value }: { value: string | number }) => (
   <motion.div
     whileHover={{ scale: 1.02 }}
-    className="flex flex-1 w-full h-full min-h-[6rem] items-center justify-center"
+    className="flex flex-1 w-full h-full min-h-[5rem] items-center justify-center"
     style={{ background: 'radial-gradient(circle at 50% 40%, rgba(46, 204, 113, 0.1), transparent 70%)' }}
   >
     <div className="text-center">
@@ -72,15 +75,15 @@ const SkeletonStaffActive = ({ value }: { value: string | number }) => (
         transition={{ duration: 2, repeat: Infinity }}
         className="inline-block"
       >
-        <span className="font-mono text-5xl font-bold text-vault-success">{value}</span>
+        <span className="font-mono text-4xl font-bold text-vault-success">{value}</span>
       </motion.div>
-      <div className="flex justify-center gap-2 mt-3">
+      <div className="flex justify-center gap-2 mt-2">
         {[0, 1, 2].map((i) => (
           <motion.div
             key={i}
             animate={{ opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 1.5, delay: i * 0.4, repeat: Infinity }}
-            className="w-3 h-3 rounded-full bg-vault-success/60"
+            className="w-2.5 h-2.5 rounded-full bg-vault-success/60"
           />
         ))}
       </div>
@@ -93,69 +96,17 @@ const SkeletonRevenue = ({ value }: { value: string }) => (
     initial={{ backgroundPosition: '0 50%' }}
     animate={{ backgroundPosition: ['0 50%', '100% 50%', '0 50%'] }}
     transition={{ duration: 6, repeat: Infinity, repeatType: 'reverse' }}
-    className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl items-center justify-center"
+    className="flex flex-1 w-full h-full min-h-[5rem] rounded-lg items-center justify-center"
     style={{
       background: 'linear-gradient(-45deg, rgba(201,168,76,0.15), rgba(13,13,13,0.8), rgba(201,168,76,0.1), rgba(26,26,26,0.9))',
       backgroundSize: '400% 400%',
     }}
   >
     <div className="text-center">
-      <span className="font-mono text-4xl font-bold text-vault-gold">{value}</span>
+      <span className="font-mono text-3xl font-bold text-vault-gold">{value}</span>
       <p className="text-[10px] font-mono text-vault-gold/60 mt-2 uppercase tracking-widest">estimated today</p>
     </div>
   </motion.div>
-);
-
-const SkeletonAlerts = ({ count }: { count: number }) => {
-  const v1 = { initial: { x: 0 }, animate: { x: 6, rotate: 3, transition: { duration: 0.2 } } };
-  const v2 = { initial: { x: 0 }, animate: { x: -6, rotate: -3, transition: { duration: 0.2 } } };
-  return (
-    <motion.div initial="initial" whileHover="animate" className="flex flex-1 w-full h-full min-h-[6rem] flex-col space-y-2 p-2">
-      {count > 0 ? (
-        <>
-          <motion.div variants={v1} className="flex flex-row items-start p-2 space-x-2 border rounded-2xl border-vault-danger/30 bg-vault-surface">
-            <span className="text-lg">⚠️</span>
-            <p className="text-xs text-vault-danger">{count} active compliance {count === 1 ? 'alert' : 'alerts'}</p>
-          </motion.div>
-          <motion.div variants={v2} className="flex flex-row items-center justify-end w-3/4 p-2 ml-auto space-x-2 border rounded-full border-vault-warning/30 bg-vault-surface">
-            <p className="text-xs text-vault-warning">Review now →</p>
-            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-vault-warning to-vault-danger shrink-0" />
-          </motion.div>
-        </>
-      ) : (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <span className="text-3xl">✅</span>
-            <p className="mt-2 font-mono text-xs text-vault-success">All Clear</p>
-          </div>
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
-const SkeletonLeadFeed = () => (
-  <div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl items-center justify-center"
-    style={{ background: 'radial-gradient(circle at 30% 60%, rgba(204,0,0,0.06), transparent 70%)' }}>
-    <div className="text-center">
-      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-        <span className="text-4xl">📊</span>
-      </motion.div>
-      <p className="text-[10px] font-mono text-vault-text-muted mt-2">LIVE FEED</p>
-    </div>
-  </div>
-);
-
-const SkeletonStaffFeed = () => (
-  <div className="flex flex-1 w-full h-full min-h-[6rem] rounded-xl items-center justify-center"
-    style={{ background: 'radial-gradient(circle at 70% 40%, rgba(201,168,76,0.06), transparent 70%)' }}>
-    <div className="text-center">
-      <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 3, repeat: Infinity }}>
-        <span className="text-4xl">👥</span>
-      </motion.div>
-      <p className="text-[10px] font-mono text-vault-text-muted mt-2">ACTIVITY LOG</p>
-    </div>
-  </div>
 );
 
 /* ------------------------------------------------------------------
@@ -227,6 +178,19 @@ function deriveComplianceAlerts(staffLog: StaffEntry[]): ComplianceAlert[] {
   );
 }
 
+function formatDateTime(value?: string): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 /* ------------------------------------------------------------------
    Dashboard Page
    ------------------------------------------------------------------ */
@@ -235,6 +199,7 @@ export default function DashboardPage() {
   const [staffLog, setStaffLog] = useState<StaffEntry[]>([]);
   const [complianceAlerts, setComplianceAlerts] = useState<ComplianceAlert[]>([]);
   const [metrics, setMetrics] = useState({ leads: 0, staff: 0, revenue: 0 });
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
@@ -355,7 +320,12 @@ export default function DashboardPage() {
     }
   }, [fetchDashboardData]);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'conversations' | 'agents' | 'inventory' | 'staff' | 'data-management'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'conversations' | 'agents' | 'inventory' | 'staff' | 'data-management'>('overview');
+  const selectedLeadSource = String(selectedLead?.source ?? selectedLead?.source_channel ?? 'web');
+  const selectedLeadMethod = String(selectedLead?.contact_method ?? 'web');
+  const selectedLeadAppointmentTime =
+    selectedLead?.scheduled_time ?? selectedLead?.appointment_time ?? selectedLead?.preferred_time;
+  const selectedLeadCreated = selectedLead?.created_at ?? selectedLead?.timestamp;
 
   return (
     <div className="min-h-[calc(100vh-8rem)] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -388,8 +358,8 @@ export default function DashboardPage() {
         <nav className="flex gap-1 p-1 overflow-x-auto border rounded-xl bg-vault-surface border-vault-border">
           {[
             { id: 'overview' as const, label: 'Overview', icon: IconLayoutDashboard, badge: complianceAlerts.length > 0 ? `${complianceAlerts.length}` : undefined, badgeColor: 'vault-danger' },
-            { id: 'activity' as const, label: 'Leads & Staff', icon: IconActivity, badge: `${leads.length}` },
-            { id: 'staff' as const, label: 'Staff Onboarding', icon: IconUserPlus },
+            { id: 'leads' as const, label: 'Lead Pipeline', icon: IconAntenna, badge: `${leads.length}` },
+            { id: 'staff' as const, label: 'Staff Ops', icon: IconUsers, badge: `${metrics.staff}` },
             { id: 'inventory' as const, label: 'Inventory', icon: IconPhoto },
             { id: 'conversations' as const, label: 'Conversations', icon: IconMessage },
             { id: 'agents' as const, label: 'AI Agents', icon: IconRobot },
@@ -451,76 +421,80 @@ export default function DashboardPage() {
             )}
 
             {/* Bento Grid Overview */}
-            <BentoGrid className="md:auto-rows-[16rem] mb-8">
+            <BentoGrid className="md:auto-rows-[13rem] mb-6">
               <BentoGridItem
                 title="Today's Leads"
                 description="New customer interactions captured today"
                 header={<SkeletonLeadPulse value={loading ? '—' : metrics.leads} />}
-                className="md:col-span-1"
+                className="md:col-span-1 p-3 space-y-2"
                 icon={<IconChartBar className="w-4 h-4 text-vault-red" />}
               />
               <BentoGridItem
                 title="Active Staff"
                 description="Currently clocked in and on-site"
                 header={<SkeletonStaffActive value={loading ? '—' : metrics.staff} />}
-                className="md:col-span-1"
+                className="md:col-span-1 p-3 space-y-2"
                 icon={<IconUsers className="w-4 h-4 text-vault-success" />}
               />
               <BentoGridItem
                 title="Est. Revenue"
                 description="Projected revenue from today's leads"
                 header={<SkeletonRevenue value={loading ? '—' : `$${metrics.revenue.toLocaleString()}`} />}
-                className="md:col-span-1"
+                className="md:col-span-1 p-3 space-y-2"
                 icon={<IconCoin className="w-4 h-4 text-vault-gold" />}
               />
             </BentoGrid>
 
             {/* Quick glance: recent leads + staff in compact view */}
-            <BentoGrid className="md:auto-rows-[22rem] md:grid-cols-5">
+            <BentoGrid className="md:auto-rows-[20rem] md:grid-cols-5">
               <Card className={cn(
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0">
                   <IconAntenna className="w-4 h-4 text-vault-red" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Recent Leads</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{leads.length} total</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 p-5 overflow-y-auto">
-                  <DashboardLeadFeed leads={leads.slice(0, 8)} loading={loading} />
+                <CardContent className="flex-1 p-4 overflow-y-auto">
+                  <DashboardLeadFeed
+                    leads={leads.slice(0, 8)}
+                    loading={loading}
+                    onLeadSelect={setSelectedLead}
+                    selectedLeadId={selectedLead?.lead_id}
+                  />
                 </CardContent>
               </Card>
 
               <Card className={cn(
                 "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0">
                   <IconClockHour4 className="w-4 h-4 text-vault-gold" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
                 </CardHeader>
                 <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 p-5 overflow-y-auto">
-                  <DashboardStaffLog staffLog={staffLog.slice(0, 10)} loading={loading} onForceClockOut={handleForceClockOut} />
+                <CardContent className="flex-1 p-4 overflow-y-auto">
+                  <DashboardStaffLog staffLog={staffLog.slice(0, 8)} loading={loading} onForceClockOut={handleForceClockOut} />
                 </CardContent>
               </Card>
             </BentoGrid>
           </motion.div>
         )}
 
-        {/* ═══ LEADS & STAFF TAB ═══ */}
-        {activeTab === 'activity' && (
+        {/* ═══ LEADS TAB ═══ */}
+        {activeTab === 'leads' && (
           <motion.div
-            key="activity"
+            key="leads"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            <BentoGrid className="md:auto-rows-[36rem] md:grid-cols-5">
-              {/* Full Lead Feed */}
+            <BentoGrid className="md:auto-rows-[36rem] md:grid-cols-1">
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
+                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 overflow-hidden"
               )}>
                 <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
                   <IconAntenna className="w-4 h-4 text-vault-red" />
@@ -529,22 +503,12 @@ export default function DashboardPage() {
                 </CardHeader>
                 <Separator className="bg-vault-border" />
                 <CardContent className="flex-1 p-5 overflow-y-auto">
-                  <DashboardLeadFeed leads={leads} loading={loading} />
-                </CardContent>
-              </Card>
-
-              {/* Full Staff Activity */}
-              <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
-              )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
-                  <IconClockHour4 className="w-4 h-4 text-vault-gold" />
-                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
-                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
-                </CardHeader>
-                <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 p-5 overflow-y-auto">
-                  <DashboardStaffLog staffLog={staffLog} loading={loading} onForceClockOut={handleForceClockOut} />
+                  <DashboardLeadFeed
+                    leads={leads}
+                    loading={loading}
+                    onLeadSelect={setSelectedLead}
+                    selectedLeadId={selectedLead?.lead_id}
+                  />
                 </CardContent>
               </Card>
             </BentoGrid>
@@ -558,7 +522,7 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* ═══ STAFF ONBOARDING TAB ═══ */}
+        {/* ═══ STAFF OPS TAB ═══ */}
         {activeTab === 'staff' && (
           <motion.div
             key="staff"
@@ -567,7 +531,39 @@ export default function DashboardPage() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            <StaffOnboarding />
+            <BentoGrid className="md:auto-rows-[30rem] md:grid-cols-5">
+              <Card className={cn(
+                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-3 overflow-hidden"
+              )}>
+                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+                  <IconClockHour4 className="w-4 h-4 text-vault-gold" />
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
+                  <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
+                </CardHeader>
+                <Separator className="bg-vault-border" />
+                <CardContent className="flex-1 p-5 overflow-y-auto">
+                  <DashboardStaffLog staffLog={staffLog} loading={loading} onForceClockOut={handleForceClockOut} />
+                </CardContent>
+              </Card>
+
+              <Card className={cn(
+                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-success/40 md:col-span-2 overflow-hidden"
+              )}>
+                <CardHeader className="px-5 pt-5 pb-3">
+                  <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Onboarding</CardTitle>
+                </CardHeader>
+                <Separator className="bg-vault-border" />
+                <CardContent className="flex-1 p-5 overflow-y-auto">
+                  <StaffOnboarding />
+                </CardContent>
+              </Card>
+            </BentoGrid>
+
+            {complianceAlerts.length > 0 && (
+              <div className="mt-6">
+                <ComplianceAlerts alerts={complianceAlerts} />
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -584,7 +580,6 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* ═══ 
         {/* ═══ CONVERSATIONS TAB ═══ */}
         {activeTab === 'conversations' && (
           <motion.div
@@ -604,7 +599,7 @@ export default function DashboardPage() {
               </CardHeader>
               <Separator className="bg-vault-border" />
               <CardContent className="flex-1 p-5 overflow-y-auto">
-                <DashboardChatHistory maxDisplay={50} />
+                <DashboardChatHistory maxDisplay={0} />
               </CardContent>
             </Card>
           </motion.div>
@@ -636,6 +631,104 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Dialog open={Boolean(selectedLead)} onOpenChange={(open) => !open && setSelectedLead(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden border-vault-border bg-vault-surface-elevated text-vault-text-light">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-display text-vault-text-light">Lead Details</DialogTitle>
+            <DialogDescription className="font-body text-vault-text-muted">
+              Full interaction record including source, timing, and appraisal metadata.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedLead && (
+            <div className="max-h-[calc(85vh-8rem)] overflow-y-auto pr-1 space-y-5 font-body">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Customer</p>
+                  <p className="mt-1 text-sm font-semibold text-vault-text-light">{selectedLead.customer_name || 'Anonymous'}</p>
+                  <p className="text-xs text-vault-text-muted">{selectedLead.phone || 'No phone on file'}</p>
+                </div>
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Lead Status</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="secondary" className="bg-vault-gold/20 text-vault-gold">
+                      {selectedLead.status || 'new'}
+                    </Badge>
+                    <Badge variant="secondary" className="border bg-vault-surface-elevated text-vault-text-muted border-vault-border">
+                      {selectedLead.priority || 'normal'} priority
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Source</p>
+                  <p className="mt-1 text-sm text-vault-text-light">{selectedLeadSource}</p>
+                </div>
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Method</p>
+                  <p className="mt-1 text-sm text-vault-text-light">{selectedLeadMethod}</p>
+                </div>
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Lead Created</p>
+                  <p className="mt-1 text-sm text-vault-text-light">{formatDateTime(selectedLeadCreated)}</p>
+                </div>
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Appointment Time</p>
+                  <p className="mt-1 text-sm text-vault-text-light">{formatDateTime(selectedLeadAppointmentTime)}</p>
+                </div>
+              </div>
+
+              <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                <p className="font-mono text-xs text-vault-text-muted">Item / Inquiry</p>
+                <p className="mt-1 text-sm text-vault-text-light">{selectedLead.item_description || 'No description provided'}</p>
+                <div className="flex flex-wrap gap-3 mt-3 font-mono text-xs text-vault-text-muted">
+                  <span>Est. Value: {selectedLead.estimated_value != null ? `$${Number(selectedLead.estimated_value).toLocaleString()}` : '—'}</span>
+                  <span>Range: {selectedLead.value_range ?? '—'}</span>
+                  <span>Category: {selectedLead.item_category ?? '—'}</span>
+                </div>
+              </div>
+
+              {selectedLead.photo_url && (
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Uploaded Appraisal Photo</p>
+                  <div className="mt-2 overflow-hidden border rounded-lg border-vault-border bg-vault-black-deep">
+                    <img
+                      src={selectedLead.photo_url}
+                      alt="Uploaded appraisal item"
+                      className="object-contain w-full h-auto max-h-72"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Lead ID</p>
+                  <p className="mt-1 text-xs break-all text-vault-text-light">{selectedLead.lead_id}</p>
+                </div>
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Appraisal / Appointment</p>
+                  <p className="mt-1 text-xs break-all text-vault-text-light">
+                    appraisal: {selectedLead.appraisal_id ?? '—'}
+                    <br />
+                    appointment: {selectedLead.appointment_id ?? '—'}
+                  </p>
+                </div>
+              </div>
+
+              {selectedLead.notes && (
+                <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
+                  <p className="font-mono text-xs text-vault-text-muted">Notes</p>
+                  <p className="mt-1 text-sm text-vault-text-light">{selectedLead.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

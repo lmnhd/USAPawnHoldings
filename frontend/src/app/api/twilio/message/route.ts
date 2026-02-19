@@ -89,14 +89,22 @@ async function logLead(
   mediaUrl?: string
 ) {
   try {
+    const estimatedValueMatch = estimatedValue?.match(/\$?([\d,]+(?:\.\d+)?)/);
+    const parsedEstimate = estimatedValueMatch
+      ? Number(estimatedValueMatch[1].replace(/,/g, ''))
+      : undefined;
+
     await putItem(TABLES.leads, {
       lead_id: randomUUID(),
-      source: channel.toUpperCase(),
-      customer_phone: phone,
+      source: channel,
+      source_channel: channel,
+      contact_method: 'sms',
+      phone,
       item_description: itemDescription,
-      estimated_value: estimatedValue ?? "unknown",
+      estimated_value: Number.isFinite(parsedEstimate) ? parsedEstimate : undefined,
       photo_url: mediaUrl ?? null,
       status: "new",
+      created_at: new Date().toISOString(),
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

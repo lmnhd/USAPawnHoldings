@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -55,6 +56,14 @@ type AppraisalDraft = {
   submitting: boolean;
   lastError: string;
   resultSummary: string;
+  result?: {
+    appraisalId?: string;
+    photoUrl?: string;
+    valueRange: string;
+    estimatedValue: number;
+    explanation: string;
+    nextSteps: string;
+  };
 };
 
 const CHAT_NAME = 'Merrill Vault Assistant';
@@ -116,6 +125,16 @@ const QUICK_REPLIES: Record<ChatMode, string[]> = {
   appraisal: ['Start Guided Appraisal', 'How long does this take?'],
   ops: ['Lead Summary', 'Inventory Question', 'Staff Issue', 'Schedule Conflict'],
 };
+
+const SCHEDULE_TIME_OPTIONS = [
+  'Today 3:00 PM',
+  'Today 4:00 PM',
+  'Today 5:00 PM',
+  'Tomorrow 10:00 AM',
+  'Tomorrow 1:00 PM',
+  'Tomorrow 3:00 PM',
+  'Tomorrow 4:00 PM',
+] as const;
 
 function inferModeFromPath(pathname: string): ChatMode {
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/staff')) {
@@ -218,6 +237,7 @@ export default function ChatWidget() {
     submitting: false,
     lastError: '',
     resultSummary: '',
+    result: undefined,
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -254,6 +274,7 @@ export default function ChatWidget() {
     }
     return latestVisualMessage?.imageUrl ?? null;
   }, [voiceMode, voice.transcripts, latestVisualMessage]);
+  const isAppraisalResultView = mode === 'appraisal' && appraisal.step === 5;
 
   const findInventoryItemByImage = useCallback(async (imageUrl: string): Promise<ProductCardData | null> => {
     const res = await fetch('/api/inventory?limit=100');
@@ -337,6 +358,7 @@ export default function ChatWidget() {
       submitting: false,
       lastError: '',
       resultSummary: '',
+      result: undefined,
     });
     setMessagesByMode((prev) => ({
       ...prev,
@@ -652,6 +674,8 @@ export default function ChatWidget() {
       }
 
       const result = await response.json() as {
+        appraisal_id: string;
+        photo_url?: string;
         value_range: string;
         estimated_value: number;
         explanation: string;
@@ -665,9 +689,17 @@ export default function ChatWidget() {
         step: 5,
         submitting: false,
         resultSummary: summary,
+        result: {
+          appraisalId: result.appraisal_id,
+          photoUrl: result.photo_url,
+          valueRange: result.value_range,
+          estimatedValue: result.estimated_value,
+          explanation: result.explanation,
+          nextSteps: result.next_steps,
+        },
       }));
 
-      appendAssistant('appraisal', `${summary}\n\n${result.explanation}`);
+      appendAssistant('appraisal', 'Appraisal complete. Your result card is ready below.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to complete appraisal right now.';
       setAppraisal((prev) => ({ ...prev, submitting: false, lastError: message }));
@@ -676,7 +708,14 @@ export default function ChatWidget() {
   }, [appraisal, appendAssistant]);
 
   const handleFormSubmit = useCallback(
-    (data: Record<string, string>) => {
+    async (data: Record<string, string>) => {
+      const titleSuggestsSchedule = (activeForm?.title ?? '').toLowerCase().includes('schedule');
+      const hasScheduleShape = Boolean(
+        (data.customer_name || data.full_name || data.name)
+        && (data.phone || data.phone_number)
+        && (data.preferred_time || data.time || data.time_slot),
+      );
+      const scheduleIntent = titleSuggestsSchedule || hasScheduleShape;
       const formatted = Object.entries(data)
         .map(([key, value]) => {
           const label = key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -686,10 +725,87 @@ export default function ChatWidget() {
 
       setActiveForm(null);
       voice.clearActiveForm();
+
+      if (scheduleIntent) {
+        try {
+          const customerName = data.customer_name ?? data.full_name ?? data.name ?? '';
+          const phone = data.phone ?? data.phone_number ?? '';
+          const preferredTime = data.preferred_time ?? data.time ?? '';
+          const itemDescription = data.item_description ?? `${appraisal.category || 'Item'} appraisal follow-up`;
+
+          const response = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customer_name: customerName,
+              phone,
+              preferred_time: preferredTime,
+              item_description: itemDescription,
+              estimated_value: appraisal.result?.estimatedValue,
+              appraisal_id: appraisal.result?.appraisalId,
+              photo_url: appraisal.photos[0]?.preview ?? appraisal.result?.photoUrl,
+              source: 'chat_widget_form',
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json() as {
+              confirmation_code?: string;
+              scheduled_time?: string;
+              sms_sent?: boolean;
+            };
+            const confirmationText = result.sms_sent
+              ? `Appointment confirmed for ${result.scheduled_time ?? preferredTime}. Confirmation code: ${result.confirmation_code ?? 'N/A'}. We sent your SMS details now.`
+              : `Appointment confirmed for ${result.scheduled_time ?? preferredTime}. Confirmation code: ${result.confirmation_code ?? 'N/A'}. SMS may be delayed, so call (904) 744-5611 if needed.`;
+            appendAssistant(mode, confirmationText);
+          } else if (response.status === 409) {
+            const conflict = await response.json() as { suggest_next?: string };
+            const suggested = conflict.suggest_next
+              ? `Next available slot: ${new Date(conflict.suggest_next).toLocaleString()}.`
+              : 'Please choose another listed slot.';
+            appendAssistant(mode, `That time slot is full. ${suggested}`);
+          } else {
+            appendAssistant(mode, 'I couldn’t finalize your appointment yet. Please retry or call (904) 744-5611 and we’ll book it manually.');
+          }
+        } catch {
+          appendAssistant(mode, 'I hit a temporary scheduling issue. Please retry in a moment, or call (904) 744-5611.');
+        }
+        return;
+      }
+
       sendChatMessage(`Here is the requested information:\n\n${formatted}`);
     },
-    [sendChatMessage, voice],
+    [activeForm?.title, appraisal, appendAssistant, mode, sendChatMessage, voice],
   );
+
+  const handleScheduleFromAppraisal = useCallback(() => {
+    appendAssistant('general', 'Scheduling visit now. Please complete your contact details below so we can coordinate your in-store appraisal appointment.');
+    setMode('general');
+    setActiveForm({
+      title: 'Schedule Visit',
+      description: 'Share your contact info and preferred time. We will coordinate your in-store appraisal visit.',
+      submitLabel: 'Send Schedule Request',
+      fields: [
+        { name: 'customer_name', label: 'Name', type: 'text', placeholder: 'Your full name', required: true },
+        { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(904) 555-1234', required: true },
+        {
+          name: 'preferred_time',
+          label: 'Preferred Time',
+          type: 'select',
+          required: true,
+          options: [...SCHEDULE_TIME_OPTIONS],
+        },
+        {
+          name: 'item_description',
+          label: 'Item Details',
+          type: 'textarea',
+          placeholder: appraisal.description || `${appraisal.category || 'Item'} appraisal follow-up`,
+          required: true,
+        },
+      ],
+    });
+    voice.clearActiveForm();
+  }, [appraisal.category, appraisal.description, appendAssistant, voice]);
 
   const appraisalProgress = appraisal.step === 5 ? 100 : (appraisal.step / 4) * 100;
   const voiceLoadingText = useMemo(() => {
@@ -700,7 +816,20 @@ export default function ChatWidget() {
     return 'Retrieving voice agent...';
   }, [voiceMode, voice.status, mode]);
 
-  const rawHeroStatement = voiceMode ? latestVoiceAssistant?.text : latestAssistantMessage?.content;
+  const rawHeroStatement = useMemo(() => {
+    if (!voiceMode) return latestAssistantMessage?.content;
+
+    const latestVoiceText = latestVoiceAssistant?.text?.trim();
+    const latestTextMessage = latestAssistantMessage?.content?.trim();
+    const latestVoiceTs = latestVoiceAssistant?.timestamp ?? 0;
+    const latestTextTs = latestAssistantMessage?.id ?? 0;
+
+    if (latestTextMessage && latestTextTs >= latestVoiceTs) {
+      return latestTextMessage;
+    }
+
+    return latestVoiceText || latestTextMessage;
+  }, [voiceMode, latestVoiceAssistant?.text, latestVoiceAssistant?.timestamp, latestAssistantMessage?.content, latestAssistantMessage?.id]);
   const heroStatement = useMemo(
     () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, { preserveFullLead: true }),
     [rawHeroStatement, voiceLoadingText],
@@ -1008,130 +1137,220 @@ export default function ChatWidget() {
           )}
         </DrawerHeader>
 
-        <div className="relative z-10 flex-1 overflow-hidden px-5 py-6 md:px-10 md:py-10">
-          <motion.div
-            className="absolute left-[8%] top-[12%] h-64 w-64 rounded-full bg-vault-gold/16 blur-3xl"
-            animate={{ x: [0, 30, -10, 0], y: [0, -20, 25, 0], scale: [1, 1.05, 0.96, 1] }}
-            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute right-[10%] top-[26%] h-72 w-72 rounded-full bg-[#4A90D9]/18 blur-3xl"
-            animate={{ x: [0, -35, 15, 0], y: [0, 18, -20, 0], scale: [1, 0.96, 1.08, 1] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute bottom-[14%] left-1/2 h-48 w-[60%] -translate-x-1/2 rounded-full bg-vault-red/10 blur-3xl"
-            animate={{ opacity: [0.18, 0.33, 0.18] }}
-            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
+        <div className={`relative z-10 flex-1 overflow-hidden ${isAppraisalResultView ? 'px-2 py-2 sm:px-4 sm:py-4' : 'px-5 py-6 md:px-10 md:py-10'}`}>
+          {isAppraisalResultView && (
+            <div className="pointer-events-none absolute inset-0 bg-vault-black/68 backdrop-blur-2xl" />
+          )}
+          {!isAppraisalResultView && (
+            <>
+              <motion.div
+                className="absolute left-[8%] top-[12%] h-64 w-64 rounded-full bg-vault-gold/16 blur-3xl"
+                animate={{ x: [0, 30, -10, 0], y: [0, -20, 25, 0], scale: [1, 1.05, 0.96, 1] }}
+                transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.div
+                className="absolute right-[10%] top-[26%] h-72 w-72 rounded-full bg-[#4A90D9]/18 blur-3xl"
+                animate={{ x: [0, -35, 15, 0], y: [0, 18, -20, 0], scale: [1, 0.96, 1.08, 1] }}
+                transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.div
+                className="absolute bottom-[14%] left-1/2 h-48 w-[60%] -translate-x-1/2 rounded-full bg-vault-red/10 blur-3xl"
+                animate={{ opacity: [0.18, 0.33, 0.18] }}
+                transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </>
+          )}
 
           <div className="relative flex h-full flex-col text-center">
-            <div
-              className={`flex min-h-0 flex-1 flex-col items-center pb-5 ${
-                isDynamicFormActive ? 'justify-start pt-2' : 'justify-center'
-              }`}
-            >
-              <p className="mb-4 text-xs font-mono uppercase tracking-[0.32em] text-vault-gold/85">
-                {mode === 'appraisal' ? 'Guided Appraisal Surface' : mode === 'ops' ? 'Operations Messaging Surface' : 'Agent Messaging Surface'}
-              </p>
+            {isAppraisalResultView ? (
+              <div className="mx-auto flex h-full w-full max-w-5xl min-h-0 flex-col overflow-hidden rounded-2xl border border-vault-gold/35 bg-gradient-to-b from-vault-surface-elevated/95 via-vault-surface/95 to-vault-black/90 p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.48)] sm:p-6">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-vault-gold">AI Appraisal Result</p>
+                    <h3 className="mt-2 font-display text-2xl font-bold leading-tight text-vault-text-light sm:text-3xl">Appraisal complete. Your result card</h3>
+                  </div>
+                  <span className="rounded-full bg-vault-success/20 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wide text-vault-success">Completed</span>
+                </div>
 
-              <div className="w-full max-w-6xl rounded-2xl bg-vault-black/38 px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.62),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:px-6 md:py-5">
-                <h2
-                  key={heroResponseKey}
-                  className={`text-balance font-display font-black drop-shadow-[0_12px_28px_rgba(0,0,0,0.9)] ${
-                    isDynamicFormActive ? 'line-clamp-2 whitespace-normal' : 'whitespace-pre-wrap'
-                  }`}
-                  style={{
-                    ...heroTextStyle,
-                    opacity: heroVisible ? 1 : 0,
-                    paddingTop: '0.06em',
-                    transition: `${heroTextStyle.transition}, opacity 180ms ease`,
-                  }}
-                >
-                  {typedHeroTokens}
-                  {shouldTypewriter && <span aria-hidden="true" className="hero-typewriter-caret" />}
-                </h2>
-              </div>
-            </div>
+                <Tabs defaultValue="summary" className="mt-1 w-full">
+                  <TabsList className="grid h-auto w-full grid-cols-2 bg-vault-black/35 p-1">
+                    <TabsTrigger
+                      value="summary"
+                      className="font-body text-xs font-semibold uppercase tracking-[0.12em] text-vault-text-muted data-[state=active]:bg-vault-red data-[state=active]:text-white"
+                    >
+                      Summary
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="notes"
+                      className="font-body text-xs font-semibold uppercase tracking-[0.12em] text-vault-text-muted data-[state=active]:bg-vault-red data-[state=active]:text-white"
+                    >
+                      Appraisal Notes
+                    </TabsTrigger>
+                  </TabsList>
 
-            <div className="mt-auto flex w-full flex-col items-center gap-4 pb-3">
-              {latestVisualImageUrl && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35 }}
-                  className="overflow-hidden rounded-xl border border-vault-gold/30 bg-vault-black/50 p-1 shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
-                >
-                  <button
-                    type="button"
-                    onClick={handleLatestVisualImageClick}
-                    disabled={voiceMode}
-                    className="block disabled:cursor-default"
-                    aria-label="Open product card"
-                  >
-                    <img
-                      src={latestVisualImageUrl}
-                      alt="Inventory result"
-                      className="h-36 w-64 rounded-lg object-cover sm:h-44 sm:w-80"
-                    />
-                  </button>
-                </motion.div>
-              )}
+                  <TabsContent value="summary" className="space-y-3">
+                    <div className="rounded-xl border border-vault-border bg-vault-black/35 p-4">
+                      <p className="text-xs uppercase tracking-[0.12em] text-vault-text-muted">Estimated Range</p>
+                      <p className="mt-2 font-mono text-4xl font-bold text-vault-gold sm:text-5xl">${appraisal.result?.valueRange ?? 'N/A'}</p>
+                      <p className="mt-2 text-sm text-vault-text-muted">Midpoint estimate: <span className="font-mono text-base font-semibold text-vault-text-light">${appraisal.result?.estimatedValue?.toLocaleString?.() ?? 'N/A'}</span></p>
+                    </div>
 
-              {!voiceMode && latestVisualImageUrl && (
-                <p className="text-[11px] uppercase tracking-[0.12em] text-vault-text-muted">
-                  {isResolvingProductCard
-                    ? 'Loading product card...'
-                    : productCardError || 'Tap image for full product card'}
-                </p>
-              )}
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div className="rounded-lg border border-vault-border bg-vault-surface/65 p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-vault-text-muted">Category</p>
+                        <p className="mt-1 text-sm font-semibold text-vault-text-light sm:text-base">{appraisal.category}</p>
+                      </div>
+                      <div className="rounded-lg border border-vault-border bg-vault-surface/65 p-3">
+                        <p className="text-[10px] uppercase tracking-wide text-vault-text-muted">Photos Used</p>
+                        <p className="mt-1 text-sm font-semibold text-vault-text-light sm:text-base">{appraisal.photos.length}</p>
+                      </div>
+                    </div>
 
-              {latestUserMessage?.content && (
-                <p className="max-w-2xl text-sm text-vault-text-muted">
-                  You said: {latestUserMessage.content}
-                </p>
-              )}
+                    {appraisal.result?.nextSteps && (
+                      <div className="rounded-lg border border-vault-red/25 bg-vault-red/10 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.12em] text-vault-red font-semibold">Next Step</p>
+                        <p className="mt-1 text-sm leading-relaxed text-vault-text-light sm:text-base">{appraisal.result.nextSteps}</p>
+                      </div>
+                    )}
+                  </TabsContent>
 
-              {!voiceMode && mode === 'general' && inventoryHighlights.length > 0 && (
-                <div className="w-full max-w-3xl rounded-xl border border-vault-gold/25 bg-vault-black/45 px-4 py-3 text-left backdrop-blur-sm">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-vault-gold/90">
-                    Top Matches
-                  </p>
-                  <div className="space-y-1.5">
-                    {inventoryHighlights.map((entry, index) => (
-                      <p key={`${entry}-${index}`} className="text-xs text-vault-text-light/95">
-                        {entry}
+                  <TabsContent value="notes">
+                    <div className="rounded-xl border border-vault-border bg-vault-surface/55 p-4">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-vault-gold">Appraisal Notes</p>
+                      <p className="whitespace-pre-wrap text-sm leading-7 text-vault-text-light/95 sm:text-base">
+                        {appraisal.result?.explanation ?? 'No additional notes available.'}
                       </p>
-                    ))}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <p className="mt-3 text-center text-[11px] leading-relaxed text-vault-text-muted sm:text-xs">
+                  AI appraisal estimates are guidance only and all offers are subject to in-store inspection and USA Pawn Holdings discretion.
+                </p>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
+                  <Button
+                    variant="outline"
+                    className="w-full border-vault-gold/40 bg-vault-surface/75 text-vault-text-light hover:bg-vault-surface-elevated"
+                    onClick={handleScheduleFromAppraisal}
+                  >
+                    Schedule
+                  </Button>
+                  <Button className="w-full bg-vault-red text-white hover:bg-vault-red-hover" onClick={resetAppraisalFlow}>
+                    Start New Appraisal
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  className={`flex min-h-0 flex-1 flex-col items-center pb-5 ${
+                    isDynamicFormActive ? 'justify-start pt-2' : 'justify-center'
+                  }`}
+                >
+                  <p className="mb-4 text-xs font-mono uppercase tracking-[0.32em] text-vault-gold/85">
+                    {mode === 'appraisal' ? 'Guided Appraisal Surface' : mode === 'ops' ? 'Operations Messaging Surface' : 'Agent Messaging Surface'}
+                  </p>
+
+                  <div className="w-full max-w-6xl rounded-2xl bg-vault-black/38 px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.62),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:px-6 md:py-5">
+                    <h2
+                      key={heroResponseKey}
+                      className={`text-balance font-display font-black drop-shadow-[0_12px_28px_rgba(0,0,0,0.9)] ${
+                        isDynamicFormActive ? 'line-clamp-2 whitespace-normal' : 'whitespace-pre-wrap'
+                      }`}
+                      style={{
+                        ...heroTextStyle,
+                        opacity: heroVisible ? 1 : 0,
+                        paddingTop: '0.06em',
+                        transition: `${heroTextStyle.transition}, opacity 180ms ease`,
+                      }}
+                    >
+                      {typedHeroTokens}
+                      {shouldTypewriter && <span aria-hidden="true" className="hero-typewriter-caret" />}
+                    </h2>
                   </div>
                 </div>
-              )}
 
-              {isStreaming && (
-                <div className="flex items-center gap-2 rounded-full border border-vault-gold/35 bg-vault-black/45 px-4 py-2 text-xs text-vault-text-light backdrop-blur-sm shadow-[0_0_35px_rgba(201,168,76,0.22)]">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '0ms' }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '150ms' }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '300ms' }} />
-                  <span className="ml-1 uppercase tracking-[0.14em]">Agent composing</span>
-                </div>
-              )}
+                <div className="mt-auto flex w-full flex-col items-center gap-4 pb-3">
+                  {latestVisualImageUrl && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35 }}
+                      className="overflow-hidden rounded-xl border border-vault-gold/30 bg-vault-black/50 p-1 shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
+                    >
+                      <button
+                        type="button"
+                        onClick={handleLatestVisualImageClick}
+                        disabled={voiceMode}
+                        className="block disabled:cursor-default"
+                        aria-label="Open product card"
+                      >
+                        <img
+                          src={latestVisualImageUrl}
+                          alt="Inventory result"
+                          className="h-36 w-64 rounded-lg object-cover sm:h-44 sm:w-80"
+                        />
+                      </button>
+                    </motion.div>
+                  )}
 
-              {voiceMode && (
-                <div className="rounded-full border border-vault-gold/30 bg-vault-black/45 px-4 py-2 text-xs uppercase tracking-[0.14em] text-vault-text-light backdrop-blur-sm">
-                  {voice.status === 'connecting'
-                    ? 'Connecting voice'
-                    : voice.isUserSpeaking
-                      ? 'Listening'
-                      : voice.isSpeaking
-                        ? 'Assistant speaking'
-                        : 'Voice ready'}
+                  {!voiceMode && latestVisualImageUrl && (
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-vault-text-muted">
+                      {isResolvingProductCard
+                        ? 'Loading product card...'
+                        : productCardError || 'Tap image for full product card'}
+                    </p>
+                  )}
+
+                  {latestUserMessage?.content && (
+                    <p className="max-w-2xl text-sm text-vault-text-muted">
+                      You said: {latestUserMessage.content}
+                    </p>
+                  )}
+
+                  {!voiceMode && mode === 'general' && inventoryHighlights.length > 0 && (
+                    <div className="w-full max-w-3xl rounded-xl border border-vault-gold/25 bg-vault-black/45 px-4 py-3 text-left backdrop-blur-sm">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-vault-gold/90">
+                        Top Matches
+                      </p>
+                      <div className="space-y-1.5">
+                        {inventoryHighlights.map((entry, index) => (
+                          <p key={`${entry}-${index}`} className="text-xs text-vault-text-light/95">
+                            {entry}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isStreaming && (
+                    <div className="flex items-center gap-2 rounded-full border border-vault-gold/35 bg-vault-black/45 px-4 py-2 text-xs text-vault-text-light backdrop-blur-sm shadow-[0_0_35px_rgba(201,168,76,0.22)]">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '0ms' }} />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '150ms' }} />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '300ms' }} />
+                      <span className="ml-1 uppercase tracking-[0.14em]">Agent composing</span>
+                    </div>
+                  )}
+
+                  {voiceMode && (
+                    <div className="rounded-full border border-vault-gold/30 bg-vault-black/45 px-4 py-2 text-xs uppercase tracking-[0.14em] text-vault-text-light backdrop-blur-sm">
+                      {voice.status === 'connecting'
+                        ? 'Connecting voice'
+                        : voice.isUserSpeaking
+                          ? 'Listening'
+                          : voice.isSpeaking
+                            ? 'Assistant speaking'
+                            : 'Voice ready'}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
 
-        {mode === 'appraisal' && (
+        {mode === 'appraisal' && !isAppraisalResultView && (
           <div className="relative z-10 border-t border-vault-border-accent bg-vault-black/65 p-4 backdrop-blur-sm">
             {appraisal.step === 1 && (
               <div className="space-y-3">
@@ -1270,17 +1489,6 @@ export default function ChatWidget() {
                     {appraisal.submitting ? 'Analyzing…' : 'Submit Appraisal'}
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {appraisal.step === 5 && (
-              <div className="space-y-3 text-sm">
-                <div className="rounded-lg border border-vault-gold/30 bg-vault-gold/10 p-3 text-vault-text-light">
-                  {appraisal.resultSummary}
-                </div>
-                <Button className="w-full bg-vault-red text-white hover:bg-vault-red-hover" onClick={resetAppraisalFlow}>
-                  Start New Appraisal
-                </Button>
               </div>
             )}
 

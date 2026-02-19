@@ -54,20 +54,21 @@ function normalizeFormKey(key: string): string {
 }
 
 function parseSubmittedFormData(messageContent: string): Record<string, string> | null {
-  const marker = "Here is the requested information:";
-  if (!messageContent.includes(marker)) return null;
+  const markerRegex = /(Here is the requested information:|Please schedule a visit with the following details:)/i;
+  const markerMatch = messageContent.match(markerRegex);
+  if (!markerMatch || markerMatch.index == null) return null;
 
-  const afterMarker = messageContent.split(marker)[1] ?? "";
+  const afterMarker = messageContent.slice(markerMatch.index + markerMatch[0].length);
   const lines = afterMarker
     .split("\n")
-    .map((line) => line.trim())
+    .map((line) => line.replace(/^[-*•\s]+/, "").trim())
     .filter(Boolean);
 
   if (lines.length === 0) return null;
 
   const parsed: Record<string, string> = {};
   for (const line of lines) {
-    const separatorIndex = line.indexOf(":");
+    const separatorIndex = line.search(/[:=-]/);
     if (separatorIndex <= 0) continue;
 
     const rawKey = line.slice(0, separatorIndex).trim();
@@ -75,6 +76,27 @@ function parseSubmittedFormData(messageContent: string): Record<string, string> 
     if (!rawKey || !rawValue) continue;
 
     parsed[normalizeFormKey(rawKey)] = rawValue;
+  }
+
+  if (Object.keys(parsed).length === 0) {
+    const regexExtract = (
+      labelPattern: RegExp,
+      fallbackPattern?: RegExp,
+    ) => {
+      const primary = afterMarker.match(labelPattern)?.[1]?.trim();
+      if (primary) return primary;
+      return fallbackPattern ? afterMarker.match(fallbackPattern)?.[1]?.trim() ?? "" : "";
+    };
+
+    const customerName = regexExtract(/(?:customer\s*name|full\s*name|name)\s*[:=-]\s*([^\n]+)/i);
+    const phone = regexExtract(/(?:phone|phone\s*number)\s*[:=-]\s*([^\n]+)/i);
+    const preferredTime = regexExtract(/(?:preferred\s*time|time\s*slot|time)\s*[:=-]\s*([^\n]+)/i);
+    const itemDescription = regexExtract(/(?:item\s*description|item\s*details?)\s*[:=-]\s*([^\n]+)/i);
+
+    if (customerName) parsed.customer_name = customerName;
+    if (phone) parsed.phone = phone;
+    if (preferredTime) parsed.preferred_time = preferredTime;
+    if (itemDescription) parsed.item_description = itemDescription;
   }
 
   return Object.keys(parsed).length > 0 ? parsed : null;
@@ -545,15 +567,19 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
         appointment_id: appointmentId,
         type: "appointment",
         source: "chat",
+        source_channel: "chat",
+        contact_method: "chat",
         customer_name: customerName,
         phone,
         preferred_time: preferredTime,
         scheduled_time: preferredTime,
+        appointment_time: preferredTime,
         item_description: itemDescription,
         estimated_value: estimatedValue,
         confirmation_code: code,
         status: "scheduled",
         sms_sent: sms.success === true,
+        created_at: now,
         timestamp: now,
         updated_at: now,
       });
@@ -642,12 +668,15 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
 
       await putItem(TABLES.leads, {
         lead_id: leadId,
-        source: String(args.source ?? "web"),
+        source: String(args.source ?? "web").toLowerCase(),
+        source_channel: String(args.source ?? "web").toLowerCase(),
+        contact_method: String(args.contact_method ?? "web").toLowerCase(),
         customer_name: String((args.customer_info as { name?: string } | undefined)?.name ?? ""),
         phone: String((args.customer_info as { phone?: string } | undefined)?.phone ?? ""),
         item_description: String(args.item_interest ?? ""),
         estimated_value: Number(args.estimated_value ?? 0),
         status: "new",
+        created_at: now,
         timestamp: now,
       });
 
@@ -663,10 +692,13 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
       await putItem(TABLES.leads, {
         lead_id: leadId,
         source: "web",
+        source_channel: "web",
+        contact_method: "web",
         item_description: String(args.reason ?? "Escalation requested"),
         estimated_value: Number(args.estimated_value ?? 0),
         priority: String(args.priority ?? "high"),
         status: "escalated",
+        created_at: new Date().toISOString(),
         timestamp: new Date().toISOString(),
       });
 

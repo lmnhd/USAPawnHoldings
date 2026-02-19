@@ -6,6 +6,7 @@ import Link from 'next/link';
 import InventoryGrid, { InventoryItem } from '@/components/InventoryGrid';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /* ── Constants ── */
 
@@ -137,7 +138,31 @@ function InventoryContent() {
       {/* ═══════════════ CATEGORY FILTERS ═══════════════ */}
       <section className="sticky top-0 z-30 bg-vault-black-deep/95 backdrop-blur-md border-y border-vault-gold/10">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-center">
+          <div className="sm:hidden">
+            <div className="rounded-2xl border border-vault-gold/15 bg-vault-surface-elevated/95 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="h-12 rounded-xl border-vault-gold/20 bg-vault-surface text-vault-text-light font-semibold">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                  {CATEGORIES.map((cat) => {
+                    const count =
+                      cat.key === 'All'
+                        ? categoryCounts['All'] ?? 0
+                        : categoryCounts[cat.key.toLowerCase()] ?? 0;
+
+                    return (
+                      <SelectItem key={cat.key} value={cat.key}>
+                        {`${cat.icon} ${cat.label} (${count})`}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="hidden sm:flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-center">
             {CATEGORIES.map((cat) => {
               const isActive = category === cat.key;
               const count =

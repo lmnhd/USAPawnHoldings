@@ -124,9 +124,7 @@ function normalizeSeriesText(value: string): string {
 function buildSeriesKey(customer: CustomerGroup, caseItem: ConversationCase): string {
   const sourceKey = [...caseItem.sources].sort().join('|');
   const previewKey = normalizeSeriesText(caseItem.preview);
-  const isAnonymous = customer.customer_key.startsWith('anon:') || customer.customer_key.startsWith('session:');
-  const customerScope = isAnonymous ? 'anonymous' : customer.customer_key;
-  return `${customerScope}:${caseItem.case_title.toLowerCase()}:${sourceKey}:${previewKey}`;
+  return `${customer.customer_key}:${caseItem.case_title.toLowerCase()}:${sourceKey}:${previewKey}`;
 }
 
 function getRelativeTime(dateStr: string): string {
@@ -387,7 +385,7 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
   const [selectedCase, setSelectedCase] = useState<{ customer: CustomerGroup; caseItem: ConversationCase } | null>(null);
   const [view, setView] = useState<'all' | 'voice-audit'>('all');
   const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
-  const [collapseRepeats, setCollapseRepeats] = useState(true);
+  const [collapseRepeats, setCollapseRepeats] = useState(false);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -399,7 +397,8 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
 
         if (response.ok) {
           const data = (await response.json()) as { customers: CustomerGroup[] };
-          setCustomers((data.customers ?? []).slice(0, maxDisplay));
+          const allCustomers = data.customers ?? [];
+          setCustomers(maxDisplay > 0 ? allCustomers.slice(0, maxDisplay) : allCustomers);
         } else {
           console.error('[Dashboard] Failed to fetch grouped conversations:', response.status);
         }
