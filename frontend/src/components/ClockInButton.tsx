@@ -63,8 +63,9 @@ export default function ClockInButton({ action, onSubmit, disabled }: ClockInBut
     try {
       await onSubmitRef.current(currentPin);
       setOpen(false);
-    } catch (err: any) {
-      setError(err?.message ?? 'Clock action failed. Try again.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Clock action failed. Try again.';
+      setError(message);
       submittingRef.current = false;
     } finally {
       setLoading(false);

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 /**
  * Twilio Voice Webhook — returns TwiML that connects the caller
@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const VOICE_SERVER_URL = process.env.VOICE_SERVER_URL;
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   if (!VOICE_SERVER_URL) {
     // Fallback: just say a message if the voice server isn't configured
     const fallback = `<?xml version="1.0" encoding="UTF-8"?>

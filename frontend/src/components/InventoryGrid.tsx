@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -94,9 +95,9 @@ function EmptyState() {
       <p className="text-vault-text-muted max-w-md leading-relaxed">
         We don&apos;t have anything in this category right now, but our inventory changes daily.
         Check back soon or{' '}
-        <a href="/appraise" className="text-vault-red hover:underline">
+          <Link href="/appraise" className="text-vault-red hover:underline">
           get an AI appraisal
-        </a>{' '}
+          </Link>{' '}
         to sell us your items!
       </p>
     </div>
@@ -229,7 +230,11 @@ export default function InventoryGrid({ items, loading = false }: InventoryGridP
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((item) => (
-          <ItemCard key={item.item_id} item={item} onImageClick={setSelectedItem} />
+          <ItemCard
+            key={item.item_id}
+            item={item}
+            onImageClick={(clickedItem) => setSelectedItem(clickedItem as ProductCardData)}
+          />
         ))}
       </div>
       <ProductCardDialog

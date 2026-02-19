@@ -91,8 +91,9 @@ function ClockInContent() {
       }
 
       setStatus('success');
-    } catch (err: any) {
-      setMessage(err?.message ?? 'Something went wrong');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      setMessage(message);
       setStatus('error');
     }
   }, [pin, staffName, mode, token]);

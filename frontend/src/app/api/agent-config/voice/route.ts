@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAgentConfig, getAgentConfigBatch } from "@/lib/agent-config";
+import { getAgentConfigBatch } from "@/lib/agent-config";
 import { GENERAL_SYSTEM_PROMPT, STORE_HOURS } from "@/lib/constants";
 import { getStoreStatusInEastern } from "@/lib/store-status";
 

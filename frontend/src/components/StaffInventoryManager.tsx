@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,8 +55,14 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
   const [categories, setCategories] = useState<string[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Show alert
+  const showAlert = useCallback((type: 'success' | 'error', message: string) => {
+    setAlert({ type, message });
+    setTimeout(() => setAlert(null), 4000);
+  }, []);
+
   // Fetch inventory
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -79,17 +85,11 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, categoryFilter, searchQuery, showAlert]);
 
   useEffect(() => {
     fetchInventory();
-  }, [statusFilter, categoryFilter]);
-
-  // Show alert
-  const showAlert = (type: 'success' | 'error', message: string) => {
-    setAlert({ type, message });
-    setTimeout(() => setAlert(null), 4000);
-  };
+  }, [fetchInventory]);
 
   // Delete item
   const handleDelete = async (itemId: string) => {

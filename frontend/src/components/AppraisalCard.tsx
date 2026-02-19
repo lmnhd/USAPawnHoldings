@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -190,7 +191,7 @@ export default function AppraisalCard({ result, photoPreview, photoPreviews, onR
               asChild
               className="px-6 py-3 h-auto rounded-xl border-vault-gold/30 text-vault-gold hover:bg-vault-gold/10 font-medium"
             >
-              <a href="/">Back to Home</a>
+              <Link href="/">Back to Home</Link>
             </Button>
             <Button
               onClick={onReset}

@@ -135,6 +135,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
   const lastInventoryQueryRef = useRef<{ category: string; keyword: string } | null>(null);
   const formRequestCountRef = useRef(0);
   const lastFormRequestAtRef = useRef<number | null>(null);
+  const executeToolCallRef = useRef<(callId: string, name: string, argsJson: string) => void>(() => {});
 
   // Cleanup on unmount
   useEffect(() => {
@@ -266,13 +267,13 @@ export function useVoiceChat(): UseVoiceChatReturn {
         // ── Tool calls: Execute against Next.js API routes ──
         case 'response.function_call_arguments.done':
           if (msg.call_id && msg.name) {
-            void executeToolCall(msg.call_id, msg.name, msg.arguments);
+            executeToolCallRef.current(msg.call_id, msg.name, msg.arguments);
           }
           break;
 
         case 'response.output_item.done':
           if (msg.item?.type === 'function_call' && msg.item.call_id && msg.item.name) {
-            void executeToolCall(msg.item.call_id, msg.item.name, msg.item.arguments);
+            executeToolCallRef.current(msg.item.call_id, msg.item.name, msg.item.arguments);
           }
           break;
 
@@ -683,6 +684,12 @@ export function useVoiceChat(): UseVoiceChatReturn {
       }
     }
   }, [buildInventoryVoiceResponse]);
+
+  useEffect(() => {
+    executeToolCallRef.current = (callId: string, name: string, argsJson: string) => {
+      void executeToolCall(callId, name, argsJson);
+    };
+  }, [executeToolCall]);
 
   const connect = useCallback(async (options?: {
     mode?: 'general' | 'appraisal' | 'ops';

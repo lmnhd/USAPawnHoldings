@@ -63,7 +63,7 @@ export default function ScheduleFormModal({
           {/* Header */}
           <div className="sticky top-0 p-5 bg-gradient-to-r from-vault-gold to-vault-gold-light rounded-t-2xl sm:rounded-t-2xl">
             <h2 className="text-xl font-bold text-white font-display">Schedule Your Visit</h2>
-            <p className="mt-1 text-sm text-blue-100">Let's get you on the calendar</p>
+            <p className="mt-1 text-sm text-blue-100">Let&apos;s get you on the calendar</p>
           </div>
 
           {/* Content */}
@@ -119,11 +119,11 @@ export default function ScheduleFormModal({
                   <option value="Friday 10am">Friday at 10:00 AM</option>
                   <option value="Friday 2pm">Friday at 2:00 PM</option>
                   <option value="Next Week">Next Week (flexible)</option>
-                  <option value="Other">Other (I'll call)</option>
+                  <option value="Other">Other (I&apos;ll call)</option>
                 </select>
               </div>
               <p className="mt-2 text-xs text-vault-text-muted">
-                💡 We're open Mon–Fri 9–6, Sat 9–5, Sun closed
+                💡 We&apos;re open Mon–Fri 9–6, Sat 9–5, Sun closed
               </p>
             </div>
 
@@ -140,7 +140,7 @@ export default function ScheduleFormModal({
                 📍 <strong>6132 Merrill Rd Ste 1</strong>, Jacksonville, FL 32277
               </p>
               <p className="mt-2 text-xs text-vault-text-muted">
-                You'll receive an SMS confirmation with directions and details.
+                You&apos;ll receive an SMS confirmation with directions and details.
               </p>
             </div>
           </div>

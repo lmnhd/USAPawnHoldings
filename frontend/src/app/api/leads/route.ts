@@ -36,10 +36,10 @@ const dynamodb = dynamodbLib as unknown as Record<string, AsyncUnknownFn>;
 
 async function scanLeads(): Promise<LeadRecord[]> {
   if (typeof dynamodb.scanItems === 'function') {
-    return (await dynamodb.scanItems(LEADS_TABLE)) ?? [];
+    return ((await dynamodb.scanItems(LEADS_TABLE)) as LeadRecord[]) ?? [];
   }
   if (typeof dynamodb.getAllItems === 'function') {
-    return (await dynamodb.getAllItems(LEADS_TABLE)) ?? [];
+    return ((await dynamodb.getAllItems(LEADS_TABLE)) as LeadRecord[]) ?? [];
   }
   return [];
 }

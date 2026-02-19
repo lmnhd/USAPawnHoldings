@@ -17,15 +17,17 @@ type StaffConfig = {
   updated_at: string;
 };
 
+type StaffUpdatePayload = Partial<Pick<StaffMember, 'name' | 'pin' | 'role' | 'phone' | 'email'>>;
+
 const STORE_CONFIG_TABLE = 'USA_Pawn_Store_Config';
 const STAFF_CONFIG_KEY = 'staff_records';
 
-const dynamodb = dynamodbLib as unknown as Record<string, (...args: any[]) => Promise<any>>;
+const dynamodb = dynamodbLib as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
 
 async function getStaffConfig(): Promise<StaffMember[]> {
   try {
     if (typeof dynamodb.getItem === 'function') {
-      const result = await dynamodb.getItem(STORE_CONFIG_TABLE, { config_key: STAFF_CONFIG_KEY });
+      const result = (await dynamodb.getItem(STORE_CONFIG_TABLE, { config_key: STAFF_CONFIG_KEY })) as { value?: string } | null;
       if (result && result.value) {
         const parsed = JSON.parse(result.value);
         return Array.isArray(parsed.staff) ? parsed.staff : [];
@@ -117,7 +119,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const currentName = String(body?.current_name ?? '').trim();
-    const updates = body?.updates || {};
+    const updates = (body?.updates ?? {}) as StaffUpdatePayload;
 
     if (!currentName) {
       return NextResponse.json({ error: 'current_name is required' }, { status: 400 });

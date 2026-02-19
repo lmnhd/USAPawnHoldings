@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,7 +19,6 @@ import {
   IconPhone,
   IconMail,
   IconCheck,
-  IconX,
   IconShield,
   IconRefresh,
   IconCopy,
@@ -52,8 +50,14 @@ export default function StaffOnboarding() {
     pin: '',
   });
 
+  // Show alert
+  const showAlert = useCallback((type: 'success' | 'error', message: string) => {
+    setAlert({ type, message });
+    setTimeout(() => setAlert(null), 4000);
+  }, []);
+
   // Fetch staff
-  const fetchStaff = async () => {
+  const fetchStaff = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/staff');
@@ -67,17 +71,11 @@ export default function StaffOnboarding() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showAlert]);
 
   useEffect(() => {
     fetchStaff();
-  }, []);
-
-  // Show alert
-  const showAlert = (type: 'success' | 'error', message: string) => {
-    setAlert({ type, message });
-    setTimeout(() => setAlert(null), 4000);
-  };
+  }, [fetchStaff]);
 
   // Add staff
   const handleAddStaff = async () => {

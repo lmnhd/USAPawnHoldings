@@ -15,14 +15,14 @@ type StaffLogRecord = {
 
 const STAFF_LOG_TABLE = 'USA_Pawn_Staff_Log';
 const STORE_CONFIG_TABLE = 'USA_Pawn_Store_Config';
-const dynamodb = dynamodbLib as unknown as Record<string, (...args: any[]) => Promise<any>>;
+const dynamodb = dynamodbLib as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
 
-async function scanTable<T = any>(table: string): Promise<T[]> {
+async function scanTable<T = unknown>(table: string): Promise<T[]> {
   if (typeof dynamodb.scanItems === 'function') {
-    return (await dynamodb.scanItems(table)) ?? [];
+    return ((await dynamodb.scanItems(table)) as T[]) ?? [];
   }
   if (typeof dynamodb.getAllItems === 'function') {
-    return (await dynamodb.getAllItems(table)) ?? [];
+    return ((await dynamodb.getAllItems(table)) as T[]) ?? [];
   }
   return [];
 }
@@ -51,22 +51,23 @@ function todayToken(): string {
     .substring(0, 16);
 }
 
-function getStaffRecords(configItems: any[]): Array<{ name: string; pin: string }> {
+function getStaffRecords(configItems: unknown[]): Array<{ name: string; pin: string }> {
   const allCandidates = configItems.flatMap((item) => {
-    const candidates: any[] = [];
+    const candidates: unknown[] = [];
+    const typedItem = (item ?? {}) as Record<string, unknown>;
     
     // Check direct properties
-    if (Array.isArray(item?.staff)) candidates.push(...item.staff);
-    if (Array.isArray(item?.staff_records)) candidates.push(...item.staff_records);
-    if (Array.isArray(item?.staffMembers)) candidates.push(...item.staffMembers);
+    if (Array.isArray(typedItem.staff)) candidates.push(...typedItem.staff);
+    if (Array.isArray(typedItem.staff_records)) candidates.push(...typedItem.staff_records);
+    if (Array.isArray(typedItem.staffMembers)) candidates.push(...typedItem.staffMembers);
     
     // Check JSON-stringified value field
-    if (item?.value && typeof item.value === 'string') {
+    if (typedItem.value && typeof typedItem.value === 'string') {
       try {
-        const parsed = JSON.parse(item.value);
+        const parsed = JSON.parse(typedItem.value) as Record<string, unknown>;
         if (Array.isArray(parsed?.staff)) candidates.push(...parsed.staff);
         if (Array.isArray(parsed?.staff_records)) candidates.push(...parsed.staff_records);
-      } catch (e) {
+      } catch {
         // Ignore JSON parse errors
       }
     }
@@ -75,7 +76,13 @@ function getStaffRecords(configItems: any[]): Array<{ name: string; pin: string 
   });
 
   return allCandidates
-    .map((record) => ({ name: String(record?.name ?? record?.staff_name ?? ''), pin: String(record?.pin ?? '') }))
+    .map((record) => {
+      const typedRecord = (record ?? {}) as Record<string, unknown>;
+      return {
+        name: String(typedRecord.name ?? typedRecord.staff_name ?? ''),
+        pin: String(typedRecord.pin ?? ''),
+      };
+    })
     .filter((record) => record.name && record.pin);
 }
 

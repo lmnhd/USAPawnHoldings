@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -110,7 +111,7 @@ export default function MediaPage() {
             </p>
 
             <div className="flex flex-col items-center justify-center gap-4 mt-8 sm:flex-row">
-              <a
+              <Link
                 href="/appraise"
                 className="group relative inline-flex items-center gap-2 px-8 py-4 h-auto rounded-lg font-semibold text-white red-gradient border border-vault-red-hover/60 shadow-lg shadow-vault-red/20 hover:shadow-vault-red/40 transition-all duration-300 hover:-translate-y-0.5"
               >
@@ -119,7 +120,7 @@ export default function MediaPage() {
                 <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
                 </svg>
-              </a>
+              </Link>
               
               <a
                 href="tel:+19046417296"

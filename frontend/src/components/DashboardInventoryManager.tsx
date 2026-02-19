@@ -99,12 +99,6 @@ export default function DashboardInventoryManager() {
     }
   };
 
-  // Remove single image from item
-  const handleRemoveImage = async (item: InventoryItem, imageIndex: number) => {
-    const newImages = (item.images || []).filter((_, i) => i !== imageIndex);
-    await handleUpdate(item.item_id, { images: newImages });
-  };
-
   // Update item
   const handleUpdate = async (itemId: string, updates: Partial<InventoryItem>) => {
     try {

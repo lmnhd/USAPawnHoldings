@@ -34,14 +34,14 @@ const DEFAULT_CATEGORIES = [
   'collectibles',
 ];
 
-const dynamodb = dynamodbLib as unknown as Record<string, (...args: any[]) => Promise<any>>;
+const dynamodb = dynamodbLib as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
 
 async function scanInventory(): Promise<InventoryItem[]> {
   if (typeof dynamodb.scanItems === 'function') {
-    return (await dynamodb.scanItems(INVENTORY_TABLE)) ?? [];
+    return ((await dynamodb.scanItems(INVENTORY_TABLE)) as InventoryItem[]) ?? [];
   }
   if (typeof dynamodb.getAllItems === 'function') {
-    return (await dynamodb.getAllItems(INVENTORY_TABLE)) ?? [];
+    return ((await dynamodb.getAllItems(INVENTORY_TABLE)) as InventoryItem[]) ?? [];
   }
   return [];
 }
@@ -83,7 +83,7 @@ async function updateInventory(itemId: string, updates: Partial<InventoryItem>):
   }
 
   if (typeof dynamodb.updateItem === 'function') {
-    const updated = await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates);
+    const updated = (await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates)) as InventoryItem | null;
     return updated ?? mergedPreview;
   }
 

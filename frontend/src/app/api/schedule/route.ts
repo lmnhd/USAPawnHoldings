@@ -34,9 +34,9 @@ const twilio = twilioLib as unknown as Record<string, AsyncUnknownFn>;
 async function scanAppointments(): Promise<AppointmentRecord[]> {
   let records: AppointmentRecord[] = [];
   if (typeof dynamodb.scanItems === 'function') {
-    records = (await dynamodb.scanItems(LEADS_TABLE)) ?? [];
+    records = ((await dynamodb.scanItems(LEADS_TABLE)) as AppointmentRecord[]) ?? [];
   } else if (typeof dynamodb.getAllItems === 'function') {
-    records = (await dynamodb.getAllItems(LEADS_TABLE)) ?? [];
+    records = ((await dynamodb.getAllItems(LEADS_TABLE)) as AppointmentRecord[]) ?? [];
   }
   return records.filter((item) => item?.type === 'appointment');
 }

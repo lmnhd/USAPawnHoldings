@@ -105,7 +105,7 @@ export default function DataManagementPanel({ onDataCleared }: DataManagementPan
         }));
         setTimeout(() => updateState(category.id, 'idle'), 5000);
       }
-    } catch (err) {
+    } catch {
       updateState(category.id, 'error');
       setResults((prev) => ({
         ...prev,

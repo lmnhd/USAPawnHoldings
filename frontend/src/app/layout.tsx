@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { Playfair_Display, Outfit, JetBrains_Mono } from 'next/font/google'
 import NavBar from '@/components/NavBar'
 import ChatWidget from '@/components/ChatWidget'
@@ -150,7 +151,9 @@ export default function RootLayout({
         />
         <NavBar />
         <main>{children}</main>
-        <ChatWidget />
+        <Suspense fallback={null}>
+          <ChatWidget />
+        </Suspense>
         </ThemeProvider>
       </body>
     </html>

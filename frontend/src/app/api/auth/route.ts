@@ -4,7 +4,13 @@ import * as authLib from '@/lib/auth';
 
 const COOKIE_NAME = 'vault_auth';
 const TTL_SECONDS = 24 * 60 * 60;
-const auth = authLib as unknown as Record<string, (...args: any[]) => any>;
+type AuthBody = {
+  action?: 'login' | 'logout' | 'check' | string;
+  password?: unknown;
+  role?: unknown;
+};
+
+const auth = authLib as unknown as Record<string, (...args: unknown[]) => unknown>;
 
 const cookieOptions = {
   httpOnly: true,
@@ -60,7 +66,7 @@ async function isPasswordValid(password: string): Promise<boolean> {
   return password === (process.env.DEMO_AUTH_PASSWORD ?? '12345');
 }
 
-function getAction(request: NextRequest, body?: any): 'login' | 'logout' | 'check' | null {
+function getAction(request: NextRequest, body?: AuthBody): 'login' | 'logout' | 'check' | null {
   const path = request.nextUrl.pathname;
   if (path.endsWith('/login')) return 'login';
   if (path.endsWith('/logout')) return 'logout';
@@ -81,7 +87,7 @@ function getAction(request: NextRequest, body?: any): 'login' | 'logout' | 'chec
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = (await request.json().catch(() => ({}))) as AuthBody;
     const action = getAction(request, body);
 
     if (action === 'logout') {

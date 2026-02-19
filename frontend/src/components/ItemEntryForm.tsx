@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 
 interface ItemEntryFormProps {
   onClose?: () => void;
-  onSuccess?: (item: any) => void;
+  onSuccess?: (item: unknown) => void;
 }
 
 const CATEGORIES = [
@@ -106,7 +106,7 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
         setUploadingImage(false);
       };
       reader.readAsDataURL(file);
-    } catch (err) {
+    } catch {
       setError('Failed to upload image');
       setUploadingImage(false);
     }
@@ -121,7 +121,7 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
         videoRef.current.srcObject = stream;
         setCameraActive(true);
       }
-    } catch (err) {
+    } catch {
       setError('Camera access denied or unavailable');
     }
   };

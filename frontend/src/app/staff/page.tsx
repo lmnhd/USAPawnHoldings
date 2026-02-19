@@ -12,6 +12,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 
+type LeadRecord = {
+  lead_id: string;
+  appointment_id?: string;
+  customer_name?: string;
+  scheduled_time?: string;
+  appointment_time?: string;
+  preferred_time?: string;
+  item_description?: string;
+  item_interest?: string;
+  estimated_value?: number;
+  source?: string;
+  status?: string;
+  type?: string;
+};
+
 /* ------------------------------------------------------------------
    Staff Portal Page (auth-gated via middleware)
    ------------------------------------------------------------------ */
@@ -92,8 +107,9 @@ export default function StaffPage() {
       // Process leads/queue
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
-        const leads: QueueItem[] = (leadsData.leads ?? [])
-          .filter((l: any) => {
+        const rawLeads = (leadsData.leads ?? []) as LeadRecord[];
+        const leads: QueueItem[] = rawLeads
+          .filter((l) => {
             const type = String(l.type ?? '').toLowerCase();
             const hasAppointmentShape = type === 'appointment' || !!l.appointment_id || !!l.scheduled_time || !!l.preferred_time;
             if (!hasAppointmentShape) return false;
@@ -101,7 +117,7 @@ export default function StaffPage() {
             const status = String(l.status ?? '').toLowerCase();
             return !['completed', 'cancelled', 'no-show', 'rejected', 'closed'].includes(status);
           })
-          .map((l: any) => ({
+          .map((l) => ({
           lead_id: l.lead_id,
           appointment_id: l.appointment_id,
           customer_name: l.customer_name ?? 'Walk-in',

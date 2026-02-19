@@ -44,7 +44,6 @@ export default function PriceLookupTool({ onClose }: PriceLookupToolProps) {
   const [parsedSpecs, setParsedSpecs] = useState<ParsedMetalSpecs | null>(null);
   const [valuation, setValuation] = useState<ValuationResult | null>(null);
   const [spotPrices, setSpotPrices] = useState<SpotPrices | null>(null);
-  const [loading, setLoading] = useState(false);
   const [priceLoading, setPriceLoading] = useState(false);
   const [manualWeight, setManualWeight] = useState('');
   const [manualMetalType, setManualMetalType] = useState<MetalType>('gold');

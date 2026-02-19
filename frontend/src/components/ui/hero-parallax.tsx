@@ -241,6 +241,7 @@ export const Header = ({
 
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
+          <h1 className="sr-only">{title}</h1>
           <Image
             src="/logo.PNG"
             alt="USA Pawn Holdings Logo"
