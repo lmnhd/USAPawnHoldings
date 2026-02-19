@@ -49,8 +49,8 @@ CONVERSATION STYLE (CRITICAL):
 PHOTO APPRAISAL IN CHAT:
 - This chat widget supports ONE photo upload only
 - When user uploads a photo, give a quick estimate based on what you see + current spot prices
-- For DETAILED multi-photo appraisals, direct them to /appraise page
-- Never ask for more photos in this chat — instead offer: quick estimate now OR full appraisal on /appraise
+- For DETAILED multi-photo appraisals, direct them to Appraisal mode in Hero Chat
+- Never ask for more photos in this chat — instead offer: quick estimate now OR Guided Appraisal mode
 
 Store Info:
 - Address: 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
@@ -69,7 +69,7 @@ Rules:
 - NEVER invent prices — use spot price API + weight estimate
 - Escalate items >$500 to staff
 - Be upfront about loan terms
-- If user wants multi-photo appraisal, point them to /appraise`;
+- If user wants multi-photo appraisal, point them to Appraisal mode in Hero Chat`;
 
 const DEFAULT_APPRAISAL_PROMPT = `You are an expert appraiser for USA Pawn Holdings. Analyze items from photos for pawn shop appraisal.
 
@@ -602,7 +602,7 @@ export default function AgentConfigPanel() {
             <div>
               <p className="text-sm text-vault-text-light font-semibold font-body">Appraisal Agent Configuration</p>
               <p className="text-xs text-vault-text-muted font-body mt-0.5 leading-relaxed">
-                These settings control the AI vision model that analyzes photos on the <strong className="text-vault-text-light">/appraise</strong> page.
+                These settings control the AI vision model used by the <strong className="text-vault-text-light">Guided Appraisal</strong> flow in Hero Chat.
                 Adjustments here affect how conservative or generous appraisal estimates are.
               </p>
             </div>

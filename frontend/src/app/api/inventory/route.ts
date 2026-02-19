@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import * as dynamodbLib from '@/lib/dynamodb';
+import { buildSearchableTokens, matchesCategoryCandidates, normalizeTagList, resolveCategoryCandidates, tokenizeSearchInput } from '@/lib/tag-governance';
 
 type InventoryStatus = 'available' | 'sold' | 'pending' | 'returned';
 
@@ -9,6 +10,8 @@ type InventoryItem = {
   category: string;
   brand?: string;
   description?: string;
+  tags?: string[];
+  searchable_tokens?: string[];
   price?: number;
   condition?: string;
   status: InventoryStatus;
@@ -60,12 +63,31 @@ async function updateInventory(itemId: string, updates: Partial<InventoryItem>):
     throw new Error('Item not found');
   }
 
-  if (typeof dynamodb.updateItem === 'function') {
-    const updated = await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates);
-    return updated ?? { ...target, ...updates };
+  const mergedPreview: InventoryItem = { ...target, ...updates };
+  if (updates.tags) {
+    mergedPreview.tags = normalizeTagList(updates.tags);
   }
 
-  const merged = { ...target, ...updates };
+  const shouldRebuildTokens =
+    updates.category != null || updates.brand != null || updates.description != null || updates.tags != null;
+
+  if (shouldRebuildTokens) {
+    mergedPreview.searchable_tokens = buildSearchableTokens({
+      category: mergedPreview.category,
+      brand: mergedPreview.brand,
+      description: mergedPreview.description,
+      tags: mergedPreview.tags,
+    });
+    updates.searchable_tokens = mergedPreview.searchable_tokens;
+    updates.tags = mergedPreview.tags;
+  }
+
+  if (typeof dynamodb.updateItem === 'function') {
+    const updated = await dynamodb.updateItem(INVENTORY_TABLE, { item_id: itemId }, updates);
+    return updated ?? mergedPreview;
+  }
+
+  const merged = mergedPreview;
   await putInventory(merged);
   return merged;
 }
@@ -77,6 +99,8 @@ export async function GET(request: NextRequest) {
     const keyword = params.get('keyword')?.toLowerCase() ?? null;
     const status = params.get('status')?.toLowerCase() ?? null;
     const limit = Math.max(1, Math.min(Number(params.get('limit') ?? '20'), 100));
+    const keywordTokens = tokenizeSearchInput(keyword ?? '');
+    const categoryCandidates = resolveCategoryCandidates(category ?? '', keywordTokens);
 
     let items = await scanInventory();
     
@@ -84,6 +108,8 @@ export async function GET(request: NextRequest) {
     items = items.map(item => ({
       ...item,
       images: Array.isArray(item.images) ? item.images : [],
+      tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+      searchable_tokens: Array.isArray(item.searchable_tokens) ? item.searchable_tokens.map(String) : [],
       price: typeof item.price === 'number' ? item.price : 0,
       brand: item.brand || 'Unknown',
       description: item.description || 'No description',
@@ -92,15 +118,18 @@ export async function GET(request: NextRequest) {
     }));
     
     if (category) {
-      items = items.filter((item) => String(item.category).toLowerCase() === category);
+      items = items.filter((item) => matchesCategoryCandidates(String(item.category ?? ''), categoryCandidates));
     }
     if (status) {
       items = items.filter((item) => String(item.status).toLowerCase() === status);
     }
     if (keyword) {
       items = items.filter((item) => {
-        const blob = `${item.brand ?? ''} ${item.description ?? ''} ${item.category ?? ''}`.toLowerCase();
-        return blob.includes(keyword);
+        const blob = `${item.brand ?? ''} ${item.description ?? ''} ${item.category ?? ''} ${(item.tags ?? []).join(' ')} ${(item.searchable_tokens ?? []).join(' ')}`.toLowerCase();
+        const directMatch = blob.includes(keyword);
+        const tokenHits = keywordTokens.filter((token) => blob.includes(token)).length;
+        const tokenCoverage = keywordTokens.length > 0 ? tokenHits / keywordTokens.length : 0;
+        return directMatch || (keywordTokens.length <= 1 ? tokenHits === 1 : tokenCoverage >= 0.6);
       });
     }
 
@@ -132,11 +161,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const normalizedTags = normalizeTagList(body?.tags ?? body?.ai_tags);
+
     const item: InventoryItem = {
       item_id: randomUUID(),
       category,
       brand,
       description,
+      tags: normalizedTags,
       price: Number(body.price),
       condition,
       status: 'available',
@@ -144,6 +176,13 @@ export async function POST(request: NextRequest) {
       metadata: body?.metadata && typeof body.metadata === 'object' ? body.metadata : undefined,
       created_at: new Date().toISOString(),
     };
+
+    item.searchable_tokens = buildSearchableTokens({
+      category: item.category,
+      brand: item.brand,
+      description: item.description,
+      tags: item.tags,
+    });
 
     await putInventory(item);
     return NextResponse.json(item, { status: 201 });
@@ -185,6 +224,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.brand) {
       updates.brand = String(body.brand);
+    }
+    if (body.tags != null) {
+      updates.tags = normalizeTagList(body.tags);
     }
     if (Array.isArray(body.images)) {
       updates.images = body.images.map(String);

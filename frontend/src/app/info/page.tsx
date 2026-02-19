@@ -111,13 +111,13 @@ export default function InfoPage() {
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-vault-gold/40 to-transparent" />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
-          <span className="inline-block px-4 py-1.5 text-xs font-mono font-semibold tracking-[0.2em] text-vault-gold border border-vault-gold/30 rounded-full uppercase mb-6">
+          <span className="inline-block px-4 py-1.5 text-xs font-mono font-semibold tracking-[0.2em] text-white bg-vault-red/10 border border-vault-red/40 rounded-full uppercase mb-6">
             Learn How It Works
           </span>
 
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">
             How{' '}
-            <span className="bg-gradient-to-r from-vault-gold via-vault-gold-light to-vault-gold bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-vault-red via-vault-gold to-vault-gold bg-clip-text text-transparent">
               Pawning
             </span>{' '}
             Works
@@ -133,7 +133,7 @@ export default function InfoPage() {
       <section className="py-16 sm:py-20">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-vault-text-light text-center mb-6">
-            What is a <span className="text-vault-gold">Pawn Loan</span>?
+            What is a <span className="text-vault-red">Pawn Loan</span>?
           </h2>
 
           <div className="max-w-3xl mx-auto">
@@ -153,10 +153,10 @@ export default function InfoPage() {
                 { icon: '🔄', text: 'Get your item back when you repay' },
                 { icon: '📊', text: 'No impact on your credit score' },
                 { icon: '🤝', text: 'Fair appraisals using real market data' },
-              ].map((benefit) => (
+              ].map((benefit, idx) => (
                 <div
                   key={benefit.text}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-vault-surface-elevated border border-vault-gold/10"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl bg-vault-surface-elevated border ${idx % 3 === 0 ? 'border-vault-red/20 hover:border-vault-red/40' : 'border-vault-gold/10 hover:border-vault-gold/30'} transition-colors`}
                 >
                   <span className="text-lg">{benefit.icon}</span>
                   <span className="text-sm text-vault-text-light font-body">{benefit.text}</span>
@@ -171,7 +171,7 @@ export default function InfoPage() {
       <section className="py-16 sm:py-20 bg-vault-surface/50">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-vault-text-light text-center mb-14">
-            Simple <span className="text-vault-gold">3-Step</span> Process
+            Simple <span className="text-vault-red">3-Step</span> Process
           </h2>
 
           <div className="space-y-8">
@@ -182,17 +182,17 @@ export default function InfoPage() {
               >
                 {/* Step number */}
                 <div className="flex-shrink-0">
-                  <Badge className="relative z-10 flex items-center justify-center w-14 h-14 rounded-full bg-vault-black border-2 border-vault-gold text-vault-gold font-display text-2xl font-bold group-hover:bg-vault-gold group-hover:text-vault-text-on-gold transition-all duration-300">
+                  <Badge className={`relative z-10 flex items-center justify-center w-14 h-14 rounded-full bg-vault-black border-2 ${idx === 1 ? 'border-vault-red text-vault-red group-hover:bg-vault-red' : 'border-vault-gold text-vault-gold group-hover:bg-vault-gold'} font-display text-2xl font-bold group-hover:text-white transition-all duration-300`}>
                     {step.num}
                   </Badge>
                   {/* Connector line */}
                   {idx < STEPS.length - 1 && (
-                    <div className="absolute left-7 top-14 w-0.5 h-8 bg-gradient-to-b from-vault-gold/40 to-transparent" />
+                    <div className={`absolute left-7 top-14 w-0.5 h-8 bg-gradient-to-b ${idx === 0 ? 'from-vault-gold/40 via-vault-red/30' : 'from-vault-red/40 via-vault-gold/30'} to-transparent`} />
                   )}
                 </div>
 
                 {/* Content */}
-                <Card className="bg-vault-surface-elevated border border-vault-gold/10 rounded-2xl flex-1 group-hover:border-vault-gold/30 transition-colors">
+                <Card className={`bg-vault-surface-elevated border rounded-2xl flex-1 transition-colors ${idx === 1 ? 'border-vault-red/10 group-hover:border-vault-red/30' : 'border-vault-gold/10 group-hover:border-vault-gold/30'}`}>
                   <CardContent className="p-6">
                     <h3 className="font-display text-xl font-semibold text-vault-text-light mb-2">
                       {step.title}
@@ -200,7 +200,7 @@ export default function InfoPage() {
                     <p className="text-vault-text-muted leading-relaxed">
                       {step.desc}
                     </p>
-                    <p className="mt-3 text-xs text-vault-gold/70 font-mono">
+                    <p className={`mt-3 text-xs font-mono ${idx === 1 ? 'text-vault-red/70' : 'text-vault-gold/70'}`}>
                       💡 {step.detail}
                     </p>
                   </CardContent>
@@ -221,7 +221,7 @@ export default function InfoPage() {
             See an estimate of your pawn loan based on item value. Numbers are illustrative — actual offers may vary.
           </p>
 
-          <div className="max-w-lg mx-auto bg-vault-surface-elevated border border-vault-gold/20 rounded-2xl p-6 sm:p-8 shadow-xl shadow-vault-gold/5">
+          <div className="max-w-lg mx-auto bg-vault-surface-elevated border-2 border-vault-gold/20 hover:border-vault-red/30 rounded-2xl p-6 sm:p-8 shadow-xl shadow-vault-gold/5 transition-colors">
             {/* Item Value Slider */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
@@ -276,7 +276,7 @@ export default function InfoPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-vault-text-muted">Estimated Loan Amount</span>
-                <span className="font-mono text-xl font-bold text-vault-gold">
+                <span className="font-mono text-xl font-bold text-vault-red">
                   ${loanCalc.loanAmount.toLocaleString()}
                 </span>
               </div>
@@ -321,28 +321,28 @@ export default function InfoPage() {
       <section className="py-16 sm:py-20 bg-vault-surface/50">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-vault-text-light text-center mb-4">
-            What We <span className="text-vault-gold">Accept</span>
+            What We <span className="bg-gradient-to-r from-vault-red to-vault-gold bg-clip-text text-transparent">Accept</span>
           </h2>
           <p className="text-vault-text-muted text-center mb-12 max-w-lg mx-auto">
             From gold chains to power tools — if it has value, we want to see it.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {CATEGORIES.map((cat) => (
+            {CATEGORIES.map((cat, idx) => (
               <Link
                 key={cat.title}
                 href={`/inventory?category=${cat.filter}`}
-                className="group relative bg-vault-surface-elevated border border-vault-gold/10 rounded-2xl p-6 hover:border-vault-gold/40 hover:shadow-lg hover:shadow-vault-gold/5 transition-all duration-300"
+                className={`group relative bg-vault-surface-elevated border rounded-2xl p-6 hover:shadow-lg transition-all duration-300 ${idx % 4 === 0 ? 'border-vault-red/10 hover:border-vault-red/40 hover:shadow-vault-red/5' : 'border-vault-gold/10 hover:border-vault-gold/40 hover:shadow-vault-gold/5'}`}
               >
                 <div className="text-3xl mb-3">{cat.icon}</div>
-                <h3 className="font-display text-lg font-semibold text-vault-text-light group-hover:text-vault-gold transition-colors">
+                <h3 className={`font-display text-lg font-semibold text-vault-text-light transition-colors ${idx % 4 === 0 ? 'group-hover:text-vault-red' : 'group-hover:text-vault-gold'}`}>
                   {cat.title}
                 </h3>
                 <p className="mt-2 text-sm text-vault-text-muted leading-relaxed">
                   {cat.desc}
                 </p>
                 {/* Browse arrow */}
-                <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-vault-gold opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`mt-4 flex items-center gap-1 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity ${idx % 4 === 0 ? 'text-vault-red' : 'text-vault-gold'}`}>
                   Browse items
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -363,7 +363,7 @@ export default function InfoPage() {
       <section className="py-16 sm:py-20">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-vault-text-light text-center mb-4">
-            Frequently Asked <span className="text-vault-gold">Questions</span>
+            Frequently Asked <span className="bg-gradient-to-r from-vault-gold to-vault-red bg-clip-text text-transparent">Questions</span>
           </h2>
           <p className="text-vault-text-muted text-center mb-10">
             Everything you need to know about pawning, buying, and selling.
@@ -374,9 +374,9 @@ export default function InfoPage() {
               <AccordionItem
                 key={index}
                 value={`faq-${index}`}
-                className="border rounded-xl border-vault-gold/10 bg-vault-surface-elevated/50 hover:border-vault-gold/20 data-[state=open]:border-vault-gold/40 data-[state=open]:bg-vault-surface-elevated data-[state=open]:shadow-lg data-[state=open]:shadow-vault-gold/5 transition-all duration-300"
+                className={`border rounded-xl bg-vault-surface-elevated/50 transition-all duration-300 ${index % 3 === 0 ? 'border-vault-red/10 hover:border-vault-red/20 data-[state=open]:border-vault-red/40 data-[state=open]:shadow-vault-red/5' : 'border-vault-gold/10 hover:border-vault-gold/20 data-[state=open]:border-vault-gold/40 data-[state=open]:shadow-vault-gold/5'} data-[state=open]:bg-vault-surface-elevated data-[state=open]:shadow-lg`}
               >
-                <AccordionTrigger className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left hover:no-underline [&>svg]:text-vault-gold [&>svg]:w-5 [&>svg]:h-5">
+                <AccordionTrigger className={`w-full flex items-center justify-between gap-4 px-6 py-5 text-left hover:no-underline [&>svg]:w-5 [&>svg]:h-5 ${index % 3 === 0 ? '[&>svg]:text-vault-red' : '[&>svg]:text-vault-gold'}`}>
                   <span className="font-display text-base sm:text-lg font-semibold text-vault-text-light pr-4">
                     {faq.q}
                   </span>
@@ -394,14 +394,14 @@ export default function InfoPage() {
       <section className="py-20 sm:py-24 bg-vault-surface/50 border-t border-vault-gold/10">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-vault-text-light">
-            Ready to <span className="text-vault-gold">Get Started</span>?
+            Ready to <span className="text-vault-red">Get Started</span>?
           </h2>
           <p className="mt-4 text-vault-text-muted max-w-lg mx-auto leading-relaxed">
             Whether you&apos;re looking to pawn, sell, or buy — we&apos;re here to help. Get an instant estimate online or visit us in person.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button asChild className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-vault-text-on-gold gold-gradient shadow-lg shadow-vault-gold/20 hover:shadow-vault-gold/40 hover:scale-[1.02] transition-all duration-300">
+            <Button asChild className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-white red-gradient shadow-lg shadow-vault-red/20 hover:shadow-vault-red/40 hover:scale-[1.02] transition-all duration-300">
               <Link href="/appraise">
                 <span className="text-lg">📸</span>
                 Get AI Appraisal
@@ -422,7 +422,7 @@ export default function InfoPage() {
           {/* Phone */}
           <a
             href="tel:+19046417296"
-            className="inline-flex items-center gap-2 mt-8 text-vault-gold/80 hover:text-vault-gold text-sm font-mono transition-colors"
+            className="inline-flex items-center gap-2 mt-8 text-vault-red/80 hover:text-vault-red text-sm font-mono transition-colors"
           >
             📞 (904) 641-7296
           </a>

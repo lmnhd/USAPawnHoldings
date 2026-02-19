@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeImage } from "@/lib/openai";
+import { CHAT_MODEL, openai } from "@/lib/openai";
+import { normalizeTagList } from "@/lib/tag-governance";
 
 /**
  * POST /api/evaluate-item
@@ -21,6 +23,7 @@ type EvaluationResponse = {
   condition: "new" | "excellent" | "good" | "fair" | "poor";
   suggestedPrice: number;
   confidence: "high" | "medium" | "low";
+  tags: string[];
   rawAnalysis: string;
 };
 
@@ -35,6 +38,96 @@ const VALID_CATEGORIES = [
 ];
 
 const VALID_CONDITIONS = ["new", "excellent", "good", "fair", "poor"];
+
+function dedupeTags(tags: string[], max = 12): string[] {
+  return normalizeTagList(tags, max);
+}
+
+function parseTagsFromModel(content: string): string[] {
+  const trimmed = content.trim();
+  const block = trimmed.match(/\[[\s\S]*\]/);
+  const candidate = block?.[0] ?? trimmed;
+
+  try {
+    const parsed = JSON.parse(candidate);
+    if (Array.isArray(parsed)) {
+      return dedupeTags(parsed.map((entry) => String(entry)));
+    }
+  } catch {
+  }
+
+  return [];
+}
+
+function fallbackTags(category: string, brand: string | undefined, name: string, analysisText: string): string[] {
+  const tags: string[] = [];
+  if (category) tags.push(category);
+  if (brand && brand.toLowerCase() !== "unbranded") tags.push(brand);
+
+  const combined = `${name} ${analysisText}`.toLowerCase();
+
+  const keywordToTag: Array<[RegExp, string]> = [
+    [/(gold|14k|18k|10k|karat)/i, "gold"],
+    [/(silver|sterling)/i, "silver"],
+    [/(platinum)/i, "platinum"],
+    [/(necklace|chain|pendant)/i, "necklace"],
+    [/(ring|band)/i, "ring"],
+    [/(bracelet)/i, "bracelet"],
+    [/(watch|chronograph)/i, "watch"],
+    [/(pistol|handgun|9mm|glock|taurus|ruger|colt|firearm)/i, "handgun"],
+    [/(rifle|shotgun)/i, "long-gun"],
+    [/(drill|saw|tool)/i, "tools"],
+    [/(phone|iphone|android|laptop|tablet|camera|console)/i, "electronics"],
+    [/(guitar|piano|drum|amp|amplifier)/i, "musical"],
+    [/(excellent|like new)/i, "excellent-condition"],
+    [/(good condition)/i, "good-condition"],
+    [/(fair|visible wear)/i, "fair-condition"],
+  ];
+
+  for (const [pattern, tag] of keywordToTag) {
+    if (pattern.test(combined)) {
+      tags.push(tag);
+    }
+  }
+
+  return dedupeTags(tags);
+}
+
+async function generateAiTags(
+  category: string,
+  brand: string | undefined,
+  name: string,
+  description: string,
+  analysisText: string,
+): Promise<string[]> {
+  const fallback = fallbackTags(category, brand, name, analysisText);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: CHAT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Generate concise ecommerce inventory tags. Return ONLY a JSON array of lowercase strings, no explanation.",
+        },
+        {
+          role: "user",
+          content: `Category: ${category}\nBrand: ${brand ?? "unbranded"}\nName: ${name}\nDescription: ${description}\nAnalysis: ${analysisText}\n\nReturn 6-12 search-friendly tags. Include item type, material, style, condition, and any notable attributes.`,
+        },
+      ],
+    });
+
+    const content = completion.choices?.[0]?.message?.content;
+    const parsed = typeof content === "string" ? parseTagsFromModel(content) : [];
+    if (parsed.length === 0) {
+      return fallback;
+    }
+    return dedupeTags([...parsed, ...fallback]);
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * Extract structured field from AI response (e.g., "BRAND: Sony" -> "Sony")
@@ -314,6 +407,7 @@ Respond with ONLY the listing text and fields. No disclaimers, no refusals.`;
     const suggestedPrice = extractPrice(analysisText);
     const name = generateItemName(analysisText, category);
     const description = generateDescription(analysisText, name);
+    const tags = await generateAiTags(category, brand, name, description, analysisText);
 
     // Determine confidence based on how much information we extracted
     let confidence: "high" | "medium" | "low" = "medium";
@@ -332,6 +426,7 @@ Respond with ONLY the listing text and fields. No disclaimers, no refusals.`;
       condition,
       suggestedPrice,
       confidence,
+      tags,
       rawAnalysis: analysisText,
     };
 

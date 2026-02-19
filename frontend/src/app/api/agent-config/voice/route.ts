@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAgentConfig, getAgentConfigBatch } from "@/lib/agent-config";
-import { STORE_HOURS } from "@/lib/constants";
+import { GENERAL_SYSTEM_PROMPT, STORE_HOURS } from "@/lib/constants";
 import { getStoreStatusInEastern } from "@/lib/store-status";
 
 /* ──────────────────────────────────────────────────────
@@ -19,29 +19,7 @@ import { getStoreStatusInEastern } from "@/lib/store-status";
    automatically flows into the voice agent's instructions.
    ────────────────────────────────────────────────────── */
 
-const DEFAULT_CHAT_PROMPT = `You are the AI assistant for USA Pawn Holdings in Jacksonville, FL.
-
-CONVERSATION STYLE (CRITICAL):
-- Keep every response SHORT: max 1-2 sentences
-- Be warm and conversational, not formal
-- Use natural language (contractions OK, casual tone)
-- Only give detailed info if they ask for it
-
-Store Info:
-- Address: 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
-- Phone: (904) 744-5611
-- Hours: Mon-Fri 9 AM - 6 PM, Sat 9 AM - 5 PM, Sun Closed
-
-What You Can Do:
-- Quick appraisals and guidance
-- Schedule in-store visits
-- Loan info (25% interest, 30 days, usually 25-33% of resale value)
-- Spot prices (gold/silver/platinum)
-
-Rules:
-- NEVER invent prices — use spot price API + weight estimate
-- Escalate items >$500 to staff
-- Be upfront about loan terms`;
+const DEFAULT_CHAT_PROMPT = GENERAL_SYSTEM_PROMPT;
 
 const DEFAULT_VOICE_ADDENDUM = `
 VOICE CHANNEL INSTRUCTIONS (you are on a phone call, not text chat):
@@ -51,12 +29,13 @@ VOICE CHANNEL INSTRUCTIONS (you are on a phone call, not text chat):
 - Instead, say "text a photo of the item to this number" for appraisals.
 - If someone wants to schedule a visit, take their name and preferred day/time.
 - If asked about something you can't help with, offer to take a message (name + number).
+- Refer customers to usapawnfl.com to check inventory or get online appraisals.
 
 GREETING (first thing you say):
-"Thanks for calling USA Pawn Holdings! I'm the AI assistant and I'd be happy to help. What can I do for you?"
+"Thanks for calling USA Pawn Holdings! I'm the after-hours assistant and I'd be happy to help. What can I do for you?"
 
 CLOSING:
-When wrapping up, say: "Thanks for calling! Remember, you can text a photo of any item to this number for an instant estimate. Have a great night!"`;
+When wrapping up, say: "Thanks for calling! Remember, you can visit usapawnfl.com to browse inventory or get an instant appraisal. Have a great day!"`;
 
 export async function GET() {
   try {

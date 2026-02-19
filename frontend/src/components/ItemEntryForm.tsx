@@ -38,6 +38,15 @@ const CONDITIONS = [
   { value: 'poor', label: 'Poor - Heavy Wear' },
 ];
 
+function parseTagsFromInput(input: string): string[] {
+  const tags = input
+    .split(',')
+    .map((entry) => entry.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((entry) => entry.length > 1 && entry.length <= 30);
+
+  return [...new Set(tags)].slice(0, 20);
+}
+
 export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +56,13 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
   const [category, setCategory] = useState('');
   const [brand, setBrand] = useState('');
   const [description, setDescription] = useState('');
+  const [tagsText, setTagsText] = useState('');
   const [price, setPrice] = useState('');
   const [condition, setCondition] = useState('good');
   const [images, setImages] = useState<string[]>([]);
+  const [originalImages, setOriginalImages] = useState<(string | null)[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [removingBackgroundIndex, setRemovingBackgroundIndex] = useState<number | null>(null);
   
   // Auto-evaluation state
   const [evaluating, setEvaluating] = useState(false);
@@ -63,6 +75,7 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
     condition: string;
     suggestedPrice: number;
     confidence: string;
+    tags?: string[];
   } | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +98,7 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
       reader.onload = () => {
         const base64 = reader.result as string;
         setImages((prev) => [...prev, base64]);
+        setOriginalImages((prev) => [...prev, null]);
         setUploadingImage(false);
       };
       reader.onerror = () => {
@@ -123,6 +137,7 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
       ctx.drawImage(videoRef.current, 0, 0);
       const base64 = canvas.toDataURL('image/jpeg', 0.8);
       setImages((prev) => [...prev, base64]);
+      setOriginalImages((prev) => [...prev, null]);
       stopCamera();
     }
   };
@@ -138,6 +153,68 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+    setOriginalImages((prev) => prev.filter((_, i) => i !== index));
+    setRemovingBackgroundIndex((prev) => (prev === index ? null : prev));
+  };
+
+  const handleRemoveBackground = async (index: number) => {
+    const imageDataUrl = images[index];
+    if (!imageDataUrl) return;
+
+    setRemovingBackgroundIndex(index);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/image/remove-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Background removal failed');
+      }
+
+      const data = await res.json();
+      const processedImage = String(data?.imageDataUrl ?? '');
+      if (!processedImage) {
+        throw new Error('Background removal failed: empty image response');
+      }
+
+      setOriginalImages((prev) => {
+        const next = [...prev];
+        if (!next[index]) {
+          next[index] = imageDataUrl;
+        }
+        return next;
+      });
+      setImages((prev) => {
+        const next = [...prev];
+        next[index] = processedImage;
+        return next;
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRemovingBackgroundIndex(null);
+    }
+  };
+
+  const handleRevertBackground = (index: number) => {
+    const original = originalImages[index];
+    if (!original) return;
+
+    setImages((prev) => {
+      const next = [...prev];
+      next[index] = original;
+      return next;
+    });
+    setOriginalImages((prev) => {
+      const next = [...prev];
+      next[index] = null;
+      return next;
+    });
   };
 
   /* ----------------------------------------------------------------
@@ -168,6 +245,9 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
       if (result.category) setCategory(result.category);
       if (result.brand) setBrand(result.brand);
       if (result.description) setDescription(result.description);
+      if (Array.isArray(result.tags) && result.tags.length > 0) {
+        setTagsText(result.tags.join(', '));
+      }
       if (result.suggestedPrice) setPrice(result.suggestedPrice.toString());
       if (result.condition) setCondition(result.condition);
 
@@ -192,16 +272,35 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
         throw new Error('Please enter a valid price');
       }
 
+      const originalsByIndex = originalImages.reduce<Record<number, string>>((acc, original, index) => {
+        if (original && original !== images[index]) {
+          acc[index] = original;
+        }
+        return acc;
+      }, {});
+
+      const hasBackgroundRemoval = Object.keys(originalsByIndex).length > 0;
+
       const payload = {
         category,
         brand: brand.trim() || 'Unbranded',
         description: description.trim(),
+        tags: parseTagsFromInput(tagsText),
         price: numPrice,
         condition,
         images,
         metadata: {
           added_by: 'staff',
           added_at: new Date().toISOString(),
+          ...(hasBackgroundRemoval
+            ? {
+                image_processing: {
+                  background_removed: true,
+                  provider: 'remove.bg',
+                  originals_by_index: originalsByIndex,
+                },
+              }
+            : {}),
         },
       };
 
@@ -227,9 +326,12 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
         setCategory('');
         setBrand('');
         setDescription('');
+        setTagsText('');
         setPrice('');
         setCondition('good');
         setImages([]);
+        setOriginalImages([]);
+        setRemovingBackgroundIndex(null);
         setEvaluationResult(null);
         setSuccess(false);
         onClose?.();
@@ -359,7 +461,8 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
 
             {/* Image Preview Grid */}
             {images.length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
+              <>
+                <div className="grid grid-cols-3 gap-3">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative group">
                     <img
@@ -367,6 +470,11 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
                       alt={`Item ${idx + 1}`}
                       className="object-cover w-full h-24 border rounded-lg border-vault-gold/15"
                     />
+                    {originalImages[idx] && (
+                      <span className="absolute px-2 py-0.5 text-[10px] rounded-md top-1 left-1 bg-vault-success/85 text-white font-body">
+                        BG Removed
+                      </span>
+                    )}
                     <Button
                       type="button"
                       variant="destructive"
@@ -378,7 +486,40 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
                     </Button>
                   </div>
                 ))}
-              </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {images.map((_, idx) => {
+                    const bgRemoved = Boolean(originalImages[idx]);
+                    const busy = removingBackgroundIndex === idx;
+                    return bgRemoved ? (
+                      <Button
+                        key={`revert-${idx}`}
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleRevertBackground(idx)}
+                        disabled={removingBackgroundIndex !== null}
+                        className="text-xs bg-vault-surface border-vault-gold/20 text-vault-text-light hover:bg-vault-surface-elevated"
+                      >
+                        Revert Photo {idx + 1}
+                      </Button>
+                    ) : (
+                      <Button
+                        key={`remove-bg-${idx}`}
+                        type="button"
+                        variant="outline"
+                        onClick={() => handleRemoveBackground(idx)}
+                        disabled={removingBackgroundIndex !== null}
+                        className="text-xs bg-vault-surface border-vault-gold/20 text-vault-text-light hover:bg-vault-surface-elevated"
+                      >
+                        {busy ? 'Removing BG...' : `Remove BG • Photo ${idx + 1}`}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11px] text-vault-text-muted font-body">
+                  Background removal runs via remove.bg and helps AI identify the item more cleanly.
+                </p>
+              </>
             )}
 
             {/* Auto Evaluate Button */}
@@ -460,6 +601,22 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
               placeholder="e.g., 42-inch LED TV with remote, excellent picture quality"
               className="w-full px-4 py-3 resize-none bg-vault-surface border-vault-gold/15 text-vault-text-light font-body placeholder-vault-text-muted/50 focus:border-vault-gold/50"
             />
+          </div>
+
+          <div>
+            <Label className="block mb-2 text-xs font-medium tracking-wider uppercase font-body text-vault-text-muted">
+              AI/Search Tags
+            </Label>
+            <Input
+              type="text"
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+              placeholder="e.g., gold, necklace, pendant, 14k"
+              className="w-full h-auto px-4 py-3 bg-vault-surface border-vault-gold/15 text-vault-text-light font-body placeholder-vault-text-muted/50 focus:border-vault-gold/50"
+            />
+            <p className="mt-1 text-[11px] text-vault-text-muted font-body">
+              Comma-separated. Auto-filled by AI evaluation when available.
+            </p>
           </div>
 
           {/* Price & Condition */}

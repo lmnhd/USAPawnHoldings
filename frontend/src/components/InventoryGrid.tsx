@@ -1,23 +1,34 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import ProductCardDialog, { type ProductCardData } from '@/components/ProductCardDialog';
 
 /* ── Types ── */
 
 export interface InventoryItem {
   item_id: string;
+  sku?: string;
   title?: string;
   brand?: string;
+  model?: string;
   category: string;
   price: number;
   condition?: string;
   description?: string;
+  tags?: string[];
   image_url?: string;
   images?: string[];
   status?: string;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+  sold_date?: string;
+  value_range?: string;
+  savings_pct?: string;
 }
 
 interface InventoryGridProps {
@@ -94,7 +105,7 @@ function EmptyState() {
 
 /* ── Item Card ── */
 
-function ItemCard({ item }: { item: InventoryItem }) {
+function ItemCard({ item, onImageClick }: { item: InventoryItem; onImageClick: (item: InventoryItem) => void }) {
   const img = itemImage(item);
   const cond = item.condition ? conditionStyle(item.condition) : null;
   const name = itemDisplayName(item);
@@ -104,12 +115,19 @@ function ItemCard({ item }: { item: InventoryItem }) {
       {/* Image */}
       <div className="relative aspect-[4/3] bg-vault-surface overflow-hidden">
         {img ? (
-          <img
-            src={img}
-            alt={name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            loading="lazy"
-          />
+          <button
+            type="button"
+            className="w-full h-full text-left"
+            onClick={() => onImageClick(item)}
+            aria-label={`Open product card for ${name}`}
+          >
+            <img
+              src={img}
+              alt={name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              loading="lazy"
+            />
+          </button>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-vault-text-muted/40">
             <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -168,6 +186,8 @@ function ItemCard({ item }: { item: InventoryItem }) {
 /* ── Main Grid ── */
 
 export default function InventoryGrid({ items, loading = false }: InventoryGridProps) {
+  const [selectedItem, setSelectedItem] = useState<ProductCardData | null>(null);
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -187,10 +207,19 @@ export default function InventoryGrid({ items, loading = false }: InventoryGridP
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {items.map((item) => (
-        <ItemCard key={item.item_id} item={item} />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {items.map((item) => (
+          <ItemCard key={item.item_id} item={item} onImageClick={setSelectedItem} />
+        ))}
+      </div>
+      <ProductCardDialog
+        open={Boolean(selectedItem)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedItem(null);
+        }}
+        product={selectedItem}
+      />
+    </>
   );
 }

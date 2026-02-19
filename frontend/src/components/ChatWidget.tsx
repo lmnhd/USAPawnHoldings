@@ -1,477 +1,1389 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+import ProductCardDialog, { type ProductCardData } from './ProductCardDialog';
 import DynamicFormPanel from './DynamicFormPanel';
+import { useVoiceChat, type VoiceFormSpec } from '@/hooks/useVoiceChat';
 
-type FormSpec = {
-  title: string;
-  description?: string;
-  fields: Array<{
-    name: string;
-    label: string;
-    type: 'text' | 'tel' | 'email' | 'select' | 'textarea';
-    placeholder?: string;
-    required?: boolean;
-    options?: string[];
-  }>;
-  submitLabel?: string;
-};
+type FormSpec = VoiceFormSpec;
 
 type Message = {
   id: number;
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
+  productItem?: ProductCardData;
   formSpec?: FormSpec;
+  isWelcome?: boolean;
 };
 
-const QUICK_REPLIES = ['Get Appraisal', 'Check Hours', 'Schedule Visit', 'Start Ticket'];
+type ChatMode = 'general' | 'appraisal' | 'ops';
 
-const WELCOME_MESSAGE: Message = {
-  id: 0,
-  role: 'assistant',
-  content: "Welcome to USA Pawn Holdings! I'm your AI assistant. I can help you get instant appraisals, check our hours, browse inventory, or schedule a visit. How can I help you today?",
+type ModeStore = Record<ChatMode, Message[]>;
+type ConversationStore = Record<ChatMode, string | null>;
+
+type AppraisalDraft = {
+  initialized: boolean;
+  step: 1 | 2 | 3 | 4 | 5;
+  category: string;
+  description: string;
+  photos: Array<{ id: string; preview: string; label: string }>;
+  submitting: boolean;
+  lastError: string;
+  resultSummary: string;
 };
+
+const CHAT_NAME = 'Merrill Vault Assistant';
+
+const APPRAISAL_CATEGORIES = [
+  'Jewelry',
+  'Firearms',
+  'Electronics',
+  'Tools',
+  'Musical Instruments',
+  'Collectibles',
+  'Sporting Goods',
+] as const;
+
+const PHOTO_LABELS = ['Front', 'Back', 'Detail', 'Serial/Hallmark', 'Clasp/Buckle', 'Scale Reference'] as const;
+const HERO_WORD_COLORS = ['text-vault-red', 'text-white', 'text-vault-gold dark:text-[#5BA0E8]'] as const;
+const HERO_TYPEWRITER_MAX_CHARS = 100;
+const MODE_META: Record<ChatMode, { label: string; icon: string; subtitle: string }> = {
+  general: {
+    label: 'General',
+    icon: '🏛️',
+    subtitle: 'Store info, hours, inventory, and scheduling',
+  },
+  appraisal: {
+    label: 'Appraisal',
+    icon: '💎',
+    subtitle: 'Guided, step-by-step valuation flow',
+  },
+  ops: {
+    label: 'Operations',
+    icon: '🛠️',
+    subtitle: 'Staff and management support',
+  },
+};
+
+const WELCOME_MESSAGES: Record<ChatMode, Message> = {
+  general: {
+    id: 100,
+    role: 'assistant',
+    isWelcome: true,
+    content: 'Welcome to USAPawnHoldings, looking for something specific?',
+  },
+  appraisal: {
+    id: 200,
+    role: 'assistant',
+    isWelcome: true,
+    content: 'Welcome to Guided Appraisal—what item are we valuing today?',
+  },
+  ops: {
+    id: 300,
+    role: 'assistant',
+    isWelcome: true,
+    content: 'Operations mode is active—what do you need help with right now?',
+  },
+};
+
+const QUICK_REPLIES: Record<ChatMode, string[]> = {
+  general: ['Check Hours', 'Browse Inventory', 'Schedule Visit', 'Loan Terms'],
+  appraisal: ['Start Guided Appraisal', 'How long does this take?'],
+  ops: ['Lead Summary', 'Inventory Question', 'Staff Issue', 'Schedule Conflict'],
+};
+
+function inferModeFromPath(pathname: string): ChatMode {
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/staff')) {
+    return 'ops';
+  }
+  return 'general';
+}
+
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildHeroHeadline(raw: string | undefined, fallback: string, options?: { preserveFullLead?: boolean }): string {
+  const source = (raw ?? '').trim();
+  if (!source) return fallback;
+
+  const cleaned = source
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*|__|~~|#+/g, ' ')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return fallback;
+
+  const lead = options?.preserveFullLead ? cleaned : cleaned.split(/(?<=[.!?])\s+/)[0]?.trim() || cleaned;
+  return lead || fallback;
+}
+
+function extractInventoryHighlights(raw: string | undefined): string[] {
+  const source = (raw ?? '').trim();
+  if (!source) return [];
+
+  const topMatchesMarker = source.match(/Top matches:\s*(.*?)(?:\.\s|$)/i)?.[1] ?? '';
+  if (!topMatchesMarker) return [];
+
+  const fromPipes = topMatchesMarker
+    .split('|')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (fromPipes.length > 0) {
+    return fromPipes.slice(0, 3);
+  }
+
+  const fromSemicolons = topMatchesMarker
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return fromSemicolons.slice(0, 3);
+}
+
+function normalizeImageKey(url: string): string {
+  return url.trim().replace(/[?#].*$/, '');
+}
+
+function imageMatches(candidateUrl: string | null | undefined, targetUrl: string): boolean {
+  const candidate = normalizeImageKey(String(candidateUrl ?? ''));
+  const target = normalizeImageKey(targetUrl);
+  if (!candidate || !target) return false;
+  return candidate === target || candidate.endsWith(target) || target.endsWith(candidate);
+}
 
 export default function ChatWidget() {
-  const [expanded, setExpanded] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<ChatMode>('general');
+  const [messagesByMode, setMessagesByMode] = useState<ModeStore>({
+    general: [WELCOME_MESSAGES.general],
+    appraisal: [WELCOME_MESSAGES.appraisal],
+    ops: [WELCOME_MESSAGES.ops],
+  });
+  const [conversationIds, setConversationIds] = useState<ConversationStore>({
+    general: null,
+    appraisal: null,
+    ops: null,
+  });
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [activeForm, setActiveForm] = useState<FormSpec | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [selectedProductCard, setSelectedProductCard] = useState<ProductCardData | null>(null);
+  const [productCardError, setProductCardError] = useState('');
+  const [isResolvingProductCard, setIsResolvingProductCard] = useState(false);
+  const [appraisal, setAppraisal] = useState<AppraisalDraft>({
+    initialized: false,
+    step: 1,
+    category: '',
+    description: '',
+    photos: [],
+    submitting: false,
+    lastError: '',
+    resultSummary: '',
+  });
+
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const quickImageInputRef = useRef<HTMLInputElement>(null);
+  const appraisalImageInputRef = useRef<HTMLInputElement>(null);
 
-  // Detect mobile
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 640);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
+  const voice = useVoiceChat();
 
-  // Load conversation from localStorage on mount - DISABLED to create new conversations each time
-  useEffect(() => {
-    // NOTE: We no longer restore previous conversations to ensure each chat
-    // creates a new entry in the dashboard history
-    setIsLoading(false);
-  }, []);
-
-  // Auto-scroll on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Focus input when expanded
-  useEffect(() => {
-    if (expanded && !isLoading) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+  const autoMode = useMemo(() => inferModeFromPath(pathname), [pathname]);
+  const opsAllowed = autoMode === 'ops';
+  const visibleModes = useMemo(
+    () => (opsAllowed ? (['ops'] as ChatMode[]) : (['general', 'appraisal'] as ChatMode[])),
+    [opsAllowed],
+  );
+  const currentMessages = messagesByMode[mode] ?? [];
+  const latestAssistantMessage = useMemo(
+    () => [...currentMessages].reverse().find((message) => message.role === 'assistant' && message.content.trim().length > 0),
+    [currentMessages],
+  );
+  const latestUserMessage = useMemo(
+    () => [...currentMessages].reverse().find((message) => message.role === 'user' && message.content.trim().length > 0),
+    [currentMessages],
+  );
+  const latestVoiceAssistant = useMemo(
+    () => [...voice.transcripts].reverse().find((entry) => entry.role === 'assistant' && entry.text.trim().length > 0),
+    [voice.transcripts],
+  );
+  const latestVisualMessage = useMemo(() => {
+    return [...currentMessages].reverse().find((message) => Boolean(message.imageUrl)) ?? null;
+  }, [currentMessages]);
+  const latestVisualImageUrl = useMemo(() => {
+    if (voiceMode) {
+      return [...voice.transcripts].reverse().find((entry) => Boolean(entry.imageUrl))?.imageUrl ?? null;
     }
-  }, [expanded, isLoading]);
+    return latestVisualMessage?.imageUrl ?? null;
+  }, [voiceMode, voice.transcripts, latestVisualMessage]);
 
-  const sendMessage = useCallback(async (content: string, imageUrl?: string) => {
-    if (!content.trim() && !imageUrl) return;
-    if (isStreaming) return;
+  const findInventoryItemByImage = useCallback(async (imageUrl: string): Promise<ProductCardData | null> => {
+    const res = await fetch('/api/inventory?limit=100');
+    if (!res.ok) return null;
 
-    const userMsg: Message = {
-      id: Date.now(),
-      role: 'user',
-      content: content.trim(),
-      imageUrl,
-    };
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const matched = items.find((item: ProductCardData) => {
+      if (imageMatches(String(item.image_url ?? ''), imageUrl)) return true;
+      if (!Array.isArray(item.images)) return false;
+      return item.images.some((img) => imageMatches(String(img), imageUrl));
+    });
 
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-    setInput('');
-    setIsStreaming(true);
+    return matched ?? null;
+  }, []);
 
-    const assistantMsgId = Date.now() + 1;
+  const handleLatestVisualImageClick = useCallback(async () => {
+    const imageUrl = latestVisualImageUrl;
+    if (!imageUrl || voiceMode) return;
 
+    setProductCardError('');
+
+    if (latestVisualMessage?.productItem) {
+      setSelectedProductCard(latestVisualMessage.productItem);
+      return;
+    }
+
+    setIsResolvingProductCard(true);
     try {
-      // Build chat messages for API
-      const apiMessages = updatedMessages
-        .filter((m) => m.id !== 0) // skip welcome
-        .map((m) => {
-          const msg: { role: string; content: string; image_url?: string } = {
-            role: m.role,
-            content: m.content,
-          };
-          if (m.imageUrl) {
-            msg.image_url = m.imageUrl;
-          }
-          return msg;
+      const matched = await findInventoryItemByImage(imageUrl);
+      if (matched) {
+        setSelectedProductCard(matched);
+      } else {
+        setProductCardError('No inventory record linked to this image yet.');
+      }
+    } catch {
+      setProductCardError('Unable to load product details right now.');
+    } finally {
+      setIsResolvingProductCard(false);
+    }
+  }, [latestVisualImageUrl, voiceMode, latestVisualMessage, findInventoryItemByImage]);
+
+  const appendAssistant = useCallback((targetMode: ChatMode, content: string) => {
+    setMessagesByMode((prev) => ({
+      ...prev,
+      [targetMode]: [
+        ...prev[targetMode],
+        {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          role: 'assistant',
+          content,
+        },
+      ],
+    }));
+  }, []);
+
+  const mergeVoiceTranscriptsIntoChat = useCallback(() => {
+    if (voice.transcripts.length === 0) return;
+
+    const merged: Message[] = voice.transcripts.map((entry, index) => ({
+      id: Date.now() + index,
+      role: entry.role,
+      content: entry.text,
+      imageUrl: entry.imageUrl,
+    }));
+
+    setMessagesByMode((prev) => ({
+      ...prev,
+      [mode]: [...prev[mode], ...merged],
+    }));
+    voice.clearTranscripts();
+  }, [mode, voice]);
+
+  const resetAppraisalFlow = useCallback(() => {
+    setAppraisal({
+      initialized: true,
+      step: 1,
+      category: '',
+      description: '',
+      photos: [],
+      submitting: false,
+      lastError: '',
+      resultSummary: '',
+    });
+    setMessagesByMode((prev) => ({
+      ...prev,
+      appraisal: [
+        WELCOME_MESSAGES.appraisal,
+        {
+          id: Date.now(),
+          role: 'assistant',
+          content: 'Step 1 of 4 — Choose your item category to begin.',
+        },
+      ],
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (pathname === '/') {
+      const requested = searchParams.get('heroMode');
+      const requestedMode = requested === 'appraisal' || requested === 'ops' || requested === 'general'
+        ? requested
+        : 'general';
+      if (!opsAllowed && requestedMode === 'ops') {
+        setMode('general');
+      } else {
+        setMode(requestedMode);
+      }
+      if (searchParams.get('heroOpen') === '1') {
+        setOpen(true);
+      }
+      return;
+    }
+
+    setMode(autoMode);
+  }, [pathname, searchParams, autoMode, opsAllowed]);
+
+  useEffect(() => {
+    if (voice.activeForm && mode !== 'appraisal') {
+      setActiveForm(voice.activeForm as FormSpec);
+    }
+  }, [voice.activeForm, mode]);
+
+  useEffect(() => {
+    if (mode === 'appraisal' && !appraisal.initialized) {
+      resetAppraisalFlow();
+    }
+  }, [mode, appraisal.initialized, resetAppraisalFlow]);
+
+  useEffect(() => {
+    if (!opsAllowed && mode === 'ops') {
+      setMode('general');
+    }
+  }, [opsAllowed, mode]);
+
+  useEffect(() => {
+    if (open && mode !== 'appraisal') {
+      const timer = window.setTimeout(() => inputRef.current?.focus(), 120);
+      return () => window.clearTimeout(timer);
+    }
+  }, [open, mode]);
+
+  const sendChatMessage = useCallback(
+    async (content: string, imageUrl?: string) => {
+      if (mode === 'appraisal') return;
+      if (!content.trim() && !imageUrl) return;
+      if (isStreaming) return;
+
+      const userMsg: Message = {
+        id: Date.now(),
+        role: 'user',
+        content: content.trim(),
+        imageUrl,
+      };
+
+      const nextMessages = [...currentMessages, userMsg];
+      setMessagesByMode((prev) => ({ ...prev, [mode]: nextMessages }));
+      setInput('');
+      setIsStreaming(true);
+
+      const assistantMsgId = Date.now() + 1;
+
+      try {
+        const apiMessages = nextMessages
+          .map((msg) => {
+            const formatted: { role: string; content: string; image_url?: string } = {
+              role: msg.role,
+              content: msg.content,
+            };
+            if (msg.imageUrl) formatted.image_url = msg.imageUrl;
+            return formatted;
+          });
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: apiMessages,
+            conversationId: conversationIds[mode] ?? undefined,
+            mode,
+            pagePath: pathname,
+            roleHint: autoMode === 'ops' ? 'staff_or_owner' : 'customer',
+            stream: true,
+          }),
         });
 
-      const response = await fetch('/api/chat', {
+        if (!response.ok) {
+          throw new Error('Chat request failed');
+        }
+
+        const respConvId = response.headers.get('X-Conversation-ID');
+        if (respConvId) {
+          setConversationIds((prev) => ({ ...prev, [mode]: respConvId }));
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        let accumulatedContent = '';
+        let isFormRequest = false;
+        let isImageResponse = false;
+
+        setMessagesByMode((prev) => ({
+          ...prev,
+          [mode]: [...prev[mode], { id: assistantMsgId, role: 'assistant', content: '' }],
+        }));
+
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          accumulatedContent += chunk;
+
+          if (!isFormRequest && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__form_request')) {
+            isFormRequest = true;
+          }
+
+          if (!isImageResponse && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__with_image')) {
+            isImageResponse = true;
+          }
+
+          if (!isFormRequest && !isImageResponse) {
+            setMessagesByMode((prev) => {
+              const streamMessages = [...prev[mode]];
+              const idx = streamMessages.findIndex((m) => m.id === assistantMsgId);
+              if (idx >= 0) {
+                streamMessages[idx] = { ...streamMessages[idx], content: accumulatedContent };
+              }
+              return { ...prev, [mode]: streamMessages };
+            });
+          }
+        }
+
+        if (isFormRequest) {
+          try {
+            const parsed = JSON.parse(accumulatedContent);
+            if (parsed.__form_request && parsed.form_spec) {
+              setActiveForm(parsed.form_spec as FormSpec);
+              setMessagesByMode((prev) => {
+                const updated = [...prev[mode]];
+                const idx = updated.findIndex((m) => m.id === assistantMsgId);
+                if (idx >= 0) {
+                  updated[idx] = {
+                    ...updated[idx],
+                    content: parsed.form_spec.description || 'Please fill out the form below.',
+                    formSpec: parsed.form_spec as FormSpec,
+                  };
+                }
+                return { ...prev, [mode]: updated };
+              });
+            }
+          } catch {
+            setMessagesByMode((prev) => {
+              const updated = [...prev[mode]];
+              const idx = updated.findIndex((m) => m.id === assistantMsgId);
+              if (idx >= 0) {
+                updated[idx] = { ...updated[idx], content: accumulatedContent };
+              }
+              return { ...prev, [mode]: updated };
+            });
+          }
+        } else if (isImageResponse) {
+          try {
+            const parsed = JSON.parse(accumulatedContent);
+            if (parsed.__with_image && parsed.content && parsed.image_url) {
+              const parsedProduct = parsed.product_item && typeof parsed.product_item === 'object'
+                ? (parsed.product_item as ProductCardData)
+                : undefined;
+              setMessagesByMode((prev) => {
+                const updated = [...prev[mode]];
+                const idx = updated.findIndex((m) => m.id === assistantMsgId);
+                if (idx >= 0) {
+                  updated[idx] = {
+                    ...updated[idx],
+                    content: parsed.content,
+                    imageUrl: parsed.image_url,
+                    productItem: parsedProduct,
+                  };
+                }
+                return { ...prev, [mode]: updated };
+              });
+            }
+          } catch {
+            setMessagesByMode((prev) => {
+              const updated = [...prev[mode]];
+              const idx = updated.findIndex((m) => m.id === assistantMsgId);
+              if (idx >= 0) {
+                updated[idx] = { ...updated[idx], content: accumulatedContent };
+              }
+              return { ...prev, [mode]: updated };
+            });
+          }
+        }
+      } catch {
+        appendAssistant(
+          mode,
+          "I hit a temporary issue. Please retry in a moment, or call us at (904) 744-5611.",
+        );
+      } finally {
+        setIsStreaming(false);
+      }
+    },
+    [
+      mode,
+      isStreaming,
+      currentMessages,
+      conversationIds,
+      pathname,
+      autoMode,
+      appendAssistant,
+    ],
+  );
+
+  const handleQuickImageUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const base64 = await toBase64(file);
+        await sendChatMessage('[Photo uploaded for quick estimate]', base64);
+      } finally {
+        event.target.value = '';
+      }
+    },
+    [sendChatMessage],
+  );
+
+  const addAppraisalPhotos = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const selected = Array.from(files).filter((file) => file.type.startsWith('image/')).slice(0, 6);
+    if (selected.length === 0) {
+      setAppraisal((prev) => ({ ...prev, lastError: 'Please upload image files only.' }));
+      return;
+    }
+
+    const previews = await Promise.all(
+      selected.map(async (file, index) => ({
+        id: `${Date.now()}-${index}`,
+        preview: await toBase64(file),
+        label: PHOTO_LABELS[index] ?? `Photo ${index + 1}`,
+      })),
+    );
+
+    setAppraisal((prev) => ({
+      ...prev,
+      lastError: '',
+      photos: [...prev.photos, ...previews].slice(0, 6),
+    }));
+  }, []);
+
+  const moveAppraisalStep = useCallback(
+    (nextStep: 1 | 2 | 3 | 4 | 5) => {
+      setAppraisal((prev) => ({ ...prev, step: nextStep, lastError: '' }));
+
+      if (nextStep === 2) {
+        appendAssistant('appraisal', 'Great. Step 2 of 4 — add a short description (brand, condition, model, age, or markings).');
+      }
+      if (nextStep === 3) {
+        appendAssistant('appraisal', 'Perfect. Step 3 of 4 — upload clear photos. Front and detail shots work best.');
+      }
+      if (nextStep === 4) {
+        appendAssistant('appraisal', 'Excellent. Step 4 of 4 — review and submit when ready.');
+      }
+    },
+    [appendAssistant],
+  );
+
+  const submitGuidedAppraisal = useCallback(async () => {
+    if (!appraisal.category || appraisal.photos.length === 0) {
+      setAppraisal((prev) => ({ ...prev, lastError: 'Category and at least one photo are required.' }));
+      return;
+    }
+
+    setAppraisal((prev) => ({ ...prev, submitting: true, lastError: '' }));
+    appendAssistant('appraisal', 'Analyzing your item now. This usually takes a few seconds.');
+
+    try {
+      const response = await fetch('/api/appraise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: apiMessages,
-          // conversationId is NOT sent - backend generates new ID for each exchange
-          stream: true,
+          category: appraisal.category,
+          description: appraisal.description || undefined,
+          photoUrls: appraisal.photos.map((photo) => photo.preview),
+          photoLabels: appraisal.photos.map((photo) => photo.label),
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Chat request failed');
+        const data = await response.json();
+        throw new Error(data.error ?? 'Unable to appraise item');
       }
 
-      // Extract conversationId from response header - this is a NEW conversation
-      const respConvId = response.headers.get('X-Conversation-ID');
-      if (respConvId) {
-        console.log('[ChatWidget] New conversation created:', respConvId);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader');
-
-      let accumulatedContent = '';
-      const assistantMsg: Message = {
-        id: assistantMsgId,
-        role: 'assistant',
-        content: '',
+      const result = await response.json() as {
+        value_range: string;
+        estimated_value: number;
+        explanation: string;
+        next_steps: string;
       };
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      const summary = `Estimated range: $${result.value_range}. Midpoint: $${result.estimated_value}. ${result.next_steps}`;
 
-      const decoder = new TextDecoder();
-      let isFormRequest = false;
-      let isImageResponse = false;
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        accumulatedContent += chunk;
-
-        // Check if this looks like a form request (starts with { and contains __form_request)
-        if (!isFormRequest && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__form_request')) {
-          isFormRequest = true;
-        }
-        
-        // Check if this is an image response (starts with { and contains __with_image)
-        if (!isImageResponse && accumulatedContent.trim().startsWith('{') && accumulatedContent.includes('__with_image')) {
-          isImageResponse = true;
-        }
-
-        // Only update message content if it's not a special response
-        if (!isFormRequest && !isImageResponse) {
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (updated[lastIdx]?.id === assistantMsgId) {
-              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-            }
-            return updated;
-          });
-        }
-      }
-
-      // After streaming, check if response contains special data
-      if (isFormRequest) {
-        try {
-          const parsed = JSON.parse(accumulatedContent);
-          if (parsed.__form_request && parsed.form_spec) {
-            // Store form spec and update message to indicate form is shown
-            setActiveForm(parsed.form_spec as FormSpec);
-            setMessages((prev) => {
-              const updated = [...prev];
-              const lastIdx = updated.length - 1;
-              if (updated[lastIdx]?.id === assistantMsgId) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  content: parsed.form_spec.description || 'Please fill out the form below:',
-                  formSpec: parsed.form_spec as FormSpec,
-                };
-              }
-              return updated;
-            });
-          }
-        } catch (e) {
-          console.error('Failed to parse form request:', e);
-          // Fallback to showing the JSON as text
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (updated[lastIdx]?.id === assistantMsgId) {
-              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-            }
-            return updated;
-          });
-        }
-      } else if (isImageResponse) {
-        try {
-          const parsed = JSON.parse(accumulatedContent);
-          if (parsed.__with_image && parsed.content && parsed.image_url) {
-            // Update message with both content and image
-            setMessages((prev) => {
-              const updated = [...prev];
-              const lastIdx = updated.length - 1;
-              if (updated[lastIdx]?.id === assistantMsgId) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  content: parsed.content,
-                  imageUrl: parsed.image_url,
-                };
-              }
-              return updated;
-            });
-          }
-        } catch (e) {
-          console.error('Failed to parse image response:', e);
-          // Fallback to showing the JSON as text
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (updated[lastIdx]?.id === assistantMsgId) {
-              updated[lastIdx] = { ...updated[lastIdx], content: accumulatedContent };
-            }
-            return updated;
-          });
-        }
-      }
-    } catch {
-      setMessages((prev) => [
+      setAppraisal((prev) => ({
         ...prev,
-        {
-          id: assistantMsgId,
-          role: 'assistant',
-          content: "I'm sorry, I had trouble processing that. Please try again or call us at (904) 641-7296.",
-        },
-      ]);
-    } finally {
-      setIsStreaming(false);
+        step: 5,
+        submitting: false,
+        resultSummary: summary,
+      }));
+
+      appendAssistant('appraisal', `${summary}\n\n${result.explanation}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to complete appraisal right now.';
+      setAppraisal((prev) => ({ ...prev, submitting: false, lastError: message }));
+      appendAssistant('appraisal', 'I couldn’t finish that appraisal. Please retry or call the store for immediate help.');
     }
-  }, [messages, isStreaming, conversationId]);
+  }, [appraisal, appendAssistant]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(input);
-  };
+  const handleFormSubmit = useCallback(
+    (data: Record<string, string>) => {
+      const formatted = Object.entries(data)
+        .map(([key, value]) => {
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+          return `${label}: ${value}`;
+        })
+        .join('\n');
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      setActiveForm(null);
+      voice.clearActiveForm();
+      sendChatMessage(`Here is the requested information:\n\n${formatted}`);
+    },
+    [sendChatMessage, voice],
+  );
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      sendMessage(`[Photo uploaded for appraisal]`, base64);
-    };
-    reader.readAsDataURL(file);
+  const appraisalProgress = appraisal.step === 5 ? 100 : (appraisal.step / 4) * 100;
+  const voiceLoadingText = useMemo(() => {
+    if (!voiceMode) return MODE_META[mode].subtitle;
+    if (voice.status === 'connecting') return 'Retrieving voice agent...';
+    if (voice.status === 'connected') return 'Voice agent ready — ask your question.';
+    if (voice.status === 'error') return 'Voice unavailable right now — switching back to text.';
+    return 'Retrieving voice agent...';
+  }, [voiceMode, voice.status, mode]);
 
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const rawHeroStatement = voiceMode ? latestVoiceAssistant?.text : latestAssistantMessage?.content;
+  const heroStatement = useMemo(
+    () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, { preserveFullLead: true }),
+    [rawHeroStatement, voiceLoadingText],
+  );
+  const heroResponseKey = useMemo(
+    () => (voiceMode
+      ? `voice-${mode}-${voice.status}-${latestVoiceAssistant?.timestamp ?? 'seed'}`
+      : `text-${mode}-${latestAssistantMessage?.id ?? 'seed'}`),
+    [voiceMode, mode, voice.status, latestVoiceAssistant?.timestamp, latestAssistantMessage?.id],
+  );
+  const shouldTypewriter = useMemo(
+    () => heroStatement.length <= HERO_TYPEWRITER_MAX_CHARS,
+    [heroStatement.length],
+  );
+  const [typedHeroLength, setTypedHeroLength] = useState(0);
+  const [heroVisible, setHeroVisible] = useState(true);
+
+  useEffect(() => {
+    if (!open) {
+      setTypedHeroLength(0);
+      setHeroVisible(false);
+      return;
     }
-  };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' && expanded) {
-      setExpanded(false);
+    if (shouldTypewriter) {
+      setTypedHeroLength(0);
+      setHeroVisible(true);
+      return;
     }
-  };
 
-  const handleFormSubmit = (data: Record<string, string>) => {
-    // Format the form data in a clean, readable way for the AI
-    const formattedEntries = Object.entries(data)
-      .map(([key, value]) => {
-        // Convert snake_case to readable labels
-        const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        return `${label}: ${value}`;
-      })
-      .join('\n');
-    
-    const formMessage = `Here's the information you requested:\n\n${formattedEntries}`;
-    
-    setActiveForm(null);
-    sendMessage(formMessage);
-  };
+    setTypedHeroLength(heroStatement.length);
+    setHeroVisible(false);
+    const fadeId = window.setTimeout(() => setHeroVisible(true), 24);
+    return () => window.clearTimeout(fadeId);
+  }, [heroResponseKey, open, shouldTypewriter, heroStatement.length]);
 
-  const handleFormCancel = () => {
-    setActiveForm(null);
-    sendMessage('I decided not to fill out the form right now');
-  };
+  useEffect(() => {
+    if (!shouldTypewriter) return;
+    if (!open) return;
+    if (!heroStatement) return;
 
-  // Collapsed bubble
-  if (!expanded) {
-    return (
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          size="icon"
-          onClick={() => setExpanded(true)}
-          className="group w-16 h-16 rounded-full bg-vault-red text-white shadow-2xl hover:scale-110 hover:bg-vault-red-hover active:scale-95 transition-all duration-200"
-          aria-label="Open chat"
-        >
-          <span className="text-2xl group-hover:scale-110 transition-transform">💬</span>
-        </Button>
-        {/* Notification dot for new visitors */}
-        {messages.length === 1 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-vault-red rounded-full animate-pulse" />
-        )}
-      </div>
-    );
-  }
+    if (typedHeroLength > heroStatement.length) {
+      setTypedHeroLength(heroStatement.length);
+      return;
+    }
 
-  // Expanded chat (1/3 wider and taller: 400→533px width, 600→800px height)
-  const containerClass = isMobile
-    ? 'fixed inset-0 z-50 bg-vault-black flex flex-col'
-    : 'fixed bottom-6 right-6 z-50 w-[533px] h-[800px] bg-vault-surface-elevated rounded-xl shadow-vault-lg border border-vault-border-accent flex flex-col overflow-hidden';
+    if (typedHeroLength >= heroStatement.length) return;
+
+    const remaining = heroStatement.length - typedHeroLength;
+    const progress = heroStatement.length > 0 ? typedHeroLength / heroStatement.length : 1;
+    const dynamicDelay = remaining <= 12
+      ? 20
+      : progress < 0.45
+        ? 8
+        : progress < 0.85
+          ? 11
+          : 15;
+
+    const timeoutId = window.setTimeout(() => {
+      setTypedHeroLength((current) => Math.min(current + 1, heroStatement.length));
+    }, dynamicDelay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [heroStatement, typedHeroLength, open, shouldTypewriter]);
+
+  const visibleHeroStatement = useMemo(
+    () => (shouldTypewriter ? heroStatement.slice(0, typedHeroLength) : heroStatement),
+    [heroStatement, typedHeroLength, shouldTypewriter],
+  );
+  const inventoryHighlights = useMemo(
+    () => extractInventoryHighlights(latestAssistantMessage?.content),
+    [latestAssistantMessage?.content],
+  );
+  const typedHeroTokens = useMemo(() => {
+    let wordIndex = 0;
+    return visibleHeroStatement.split(/(\s+)/).map((token, index) => {
+      if (!token) return null;
+      if (/^\s+$/.test(token)) {
+        return <span key={`space-${index}`}>{token}</span>;
+      }
+
+      const colorClass = HERO_WORD_COLORS[wordIndex % HERO_WORD_COLORS.length];
+      wordIndex += 1;
+      return (
+        <span key={`word-${index}`} className={colorClass}>
+          {token}
+        </span>
+      );
+    });
+  }, [visibleHeroStatement]);
+
+  const heroLength = visibleHeroStatement.length;
+  const heroScale = useMemo(() => {
+    const maxSizeRem = 4.8;
+    const minSizeRem = 1.4;
+    const shrinkStart = 75;
+    const shrinkRange = 260;
+    const ratio = Math.min(1, Math.max(0, (heroLength - shrinkStart) / shrinkRange));
+    const sizeRem = maxSizeRem - (maxSizeRem - minSizeRem) * ratio;
+    const lineHeight = 1.08 + 0.14 * ratio;
+
+    return {
+      fontSize: `clamp(1.4rem, ${Math.max(2.4, 7.2 - ratio * 3.2)}vw, ${sizeRem.toFixed(2)}rem)`,
+      lineHeight: Number(lineHeight.toFixed(2)),
+      transition: 'font-size 180ms ease, line-height 180ms ease',
+    } as const;
+  }, [heroLength]);
+
+  const showTextInput = mode !== 'appraisal';
+  const showQuickReplies = mode !== 'appraisal' && currentMessages.length <= 2 && !isStreaming;
+  const isDynamicFormActive = Boolean(activeForm) && mode !== 'appraisal';
+  const heroTextStyle = isDynamicFormActive
+    ? {
+        ...heroScale,
+        fontSize: 'clamp(1.2rem, 4.2vw, 2.8rem)',
+        lineHeight: 1.18,
+      }
+    : heroScale;
+
+  const toggleVoiceMode = useCallback(async () => {
+    if (mode === 'appraisal') return;
+
+    if (voiceMode) {
+      voice.disconnect();
+      mergeVoiceTranscriptsIntoChat();
+      setVoiceMode(false);
+      return;
+    }
+
+    voice.clearTranscripts();
+    setVoiceMode(true);
+    await voice.connect({
+      mode,
+      conversationId: conversationIds[mode],
+      pagePath: pathname,
+      roleHint: autoMode === 'ops' ? 'staff_or_owner' : 'customer',
+      history: currentMessages
+        .slice(-8)
+        .map((msg) => ({ role: msg.role, content: msg.content })),
+    });
+  }, [mode, voiceMode, voice, mergeVoiceTranscriptsIntoChat, conversationIds, pathname, autoMode, currentMessages]);
+
+  useEffect(() => {
+    if (voiceMode && voice.status === 'error') {
+      setVoiceMode(false);
+      mergeVoiceTranscriptsIntoChat();
+    }
+  }, [voiceMode, voice.status, mergeVoiceTranscriptsIntoChat]);
 
   return (
-    <div className={containerClass} onKeyDown={handleKeyDown} role="dialog" aria-label="USA Pawn AI Chat">
-      {/* Header */}
-      <div className="bg-vault-red text-white px-4 py-3 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🏛️</span>
-          <div>
-            <span className="font-semibold text-sm">USA Pawn AI</span>
-            <span className="block text-xs opacity-70">Your Smart Pawn Assistant</span>
+    <Drawer
+      open={open}
+      onOpenChange={setOpen}
+      direction="bottom"
+      modal
+    >
+      <DrawerTrigger asChild>
+        <motion.button
+          type="button"
+          className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center overflow-visible rounded-full border border-vault-gold/35 bg-vault-black/90 shadow-[0_0_22px_rgba(230,0,0,0.75),0_0_50px_rgba(204,0,0,0.5),0_10px_34px_rgba(0,0,0,0.55)]"
+          aria-label="Open hero chat"
+          animate={{ y: [0, -8, 0], x: [0, -4, 0], rotate: [0, -2, 0, 2, 0] }}
+          transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <motion.span
+            className="pointer-events-none absolute -inset-4 rounded-full bg-vault-red/75 blur-2xl"
+            animate={{ opacity: [0.55, 0.95, 0.55], scale: [0.96, 1.12, 0.96] }}
+            transition={{ duration: 1.9, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.span
+            className="pointer-events-none absolute -inset-2 rounded-full border border-vault-red/60"
+            animate={{ opacity: [0.4, 0.9, 0.4], scale: [1, 1.1, 1] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.span
+            className="absolute inset-0 rounded-full border border-vault-gold/30"
+            animate={{ scale: [1, 1.15, 1], opacity: [0.45, 0.05, 0.45] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <Image
+            src="/images/logo-symbol.png"
+            alt="Open Merrill Vault Assistant"
+            width={34}
+            height={34}
+            className="relative z-10 h-9 w-9 object-contain"
+          />
+        </motion.button>
+      </DrawerTrigger>
+
+      <DrawerContent
+        direction="bottom"
+        className="chat-widget-surface h-[92vh] w-full max-w-none rounded-t-2xl border-vault-border-accent bg-vault-surface-elevated p-0 text-vault-text-light md:h-[94vh]"
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <Image
+            src="/images/merril_vault.png"
+            alt="Merrill Vault Assistant background"
+            fill
+            sizes="100vw"
+            className={`object-cover object-center opacity-35 transition-all duration-300 ${
+              isDynamicFormActive ? 'scale-105 blur-md' : 'scale-100 blur-0'
+            }`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#11284A]/88 via-[#0D2241]/90 to-[#08172F]/94 dark:from-[#0B1426]/84 dark:via-[#0B1426]/88 dark:to-[#0B1426]/94" />
+          <div
+            className={`absolute inset-0 transition-opacity duration-300 ${isDynamicFormActive ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <div className="absolute inset-0 bg-vault-black/65" />
+            <div
+              className="absolute inset-0 opacity-35"
+              style={{
+                backgroundImage:
+                  'radial-gradient(rgba(255,255,255,0.08) 0.7px, transparent 0.7px), radial-gradient(rgba(0,0,0,0.16) 0.8px, transparent 0.8px)',
+                backgroundPosition: '0 0, 1.5px 1.5px',
+                backgroundSize: '3px 3px, 4px 4px',
+              }}
+            />
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setExpanded(false)}
-          className="w-8 h-8 rounded-full text-white hover:bg-black/10 hover:text-white"
-          aria-label="Close chat"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </Button>
-      </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-4 space-y-3">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`
-                  max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed
-                  ${msg.role === 'user'
-                    ? 'bg-vault-red/20 text-vault-text-light rounded-br-md'
-                    : 'bg-vault-surface text-vault-text-light rounded-bl-md border border-vault-border'
-                  }
-                `}
-              >
-                {msg.imageUrl && (
-                  <div className="mb-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={msg.imageUrl}
-                      alt={msg.role === 'user' ? 'Uploaded item' : 'Inventory item'}
-                      className="max-w-full h-auto max-h-48 rounded-lg border-2 border-vault-border-accent shadow-lg"
-                    />
-                  </div>
-                )}
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
+        <DrawerHeader className="relative z-10 border-b border-vault-border-accent bg-vault-black/55 px-4 py-3 text-left backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DrawerTitle className="font-display text-base text-vault-text-light">{CHAT_NAME}</DrawerTitle>
+              <DrawerDescription className="font-body text-xs text-vault-text-muted">
+                {voiceMode
+                  ? (voice.status === 'connecting'
+                    ? 'Retrieving voice agent...'
+                    : 'Voice session active — seamless context enabled')
+                  : MODE_META[mode].subtitle}
+              </DrawerDescription>
             </div>
-          ))}
-          {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
-            <div className="flex justify-start">
-              <div className="bg-vault-surface text-vault-text-light px-4 py-2.5 rounded-2xl rounded-bl-md border border-vault-border">
-                <span className="flex gap-1">
-                  <span className="w-2 h-2 bg-vault-red rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-vault-red rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-vault-red rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
+            <div className="flex items-center gap-1">
+              {mode !== 'appraisal' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleVoiceMode}
+                  className={`h-8 w-8 ${voiceMode ? 'text-vault-gold' : 'text-vault-text-light'} hover:bg-vault-surface`}
+                  aria-label={voiceMode ? 'Switch to text mode' : 'Switch to voice mode'}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0M12 18v3m-4 0h8" />
+                  </svg>
+                </Button>
+              )}
+              <DrawerClose asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-vault-text-light hover:bg-vault-surface"
+                  onClick={() => {
+                    if (voiceMode) {
+                      voice.disconnect();
+                      mergeVoiceTranscriptsIntoChat();
+                      setVoiceMode(false);
+                    }
+                  }}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Button>
+              </DrawerClose>
+            </div>
+          </div>
+
+          <div
+            className="mt-3 grid gap-1 rounded-lg border border-vault-border bg-vault-surface/80 p-1 backdrop-blur-sm"
+            style={{ gridTemplateColumns: `repeat(${visibleModes.length}, minmax(0, 1fr))` }}
+          >
+            {visibleModes.map((modeOption) => {
+              return (
+                <Button
+                  key={modeOption}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMode(modeOption)}
+                  className={`h-8 rounded-md text-xs font-semibold ${
+                    mode === modeOption
+                      ? 'bg-vault-red text-white hover:bg-vault-red'
+                      : 'text-vault-text-muted hover:bg-vault-surface-elevated hover:text-vault-text-light'
+                  }`}
+                >
+                  <span className="mr-1">{MODE_META[modeOption].icon}</span>
+                  {MODE_META[modeOption].label}
+                </Button>
+              );
+            })}
+          </div>
+
+          {mode === 'appraisal' && (
+            <div className="mt-3 rounded-lg border border-vault-border bg-vault-surface/80 p-3 backdrop-blur-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-vault-text-muted">
+                  Guided Progress
+                </p>
+                <p className="text-xs text-vault-text-light">{Math.round(appraisalProgress)}%</p>
               </div>
+              <Progress value={appraisalProgress} className="h-2 bg-vault-black" />
             </div>
           )}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+        </DrawerHeader>
 
-      {/* Dynamic Form Panel */}
-      {activeForm && (
-        <DynamicFormPanel
-          formSpec={activeForm}
-          onSubmit={handleFormSubmit}
-          onCancel={handleFormCancel}
-        />
-      )}
+        <div className="relative z-10 flex-1 overflow-hidden px-5 py-6 md:px-10 md:py-10">
+          <motion.div
+            className="absolute left-[8%] top-[12%] h-64 w-64 rounded-full bg-vault-gold/16 blur-3xl"
+            animate={{ x: [0, 30, -10, 0], y: [0, -20, 25, 0], scale: [1, 1.05, 0.96, 1] }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute right-[10%] top-[26%] h-72 w-72 rounded-full bg-[#4A90D9]/18 blur-3xl"
+            animate={{ x: [0, -35, 15, 0], y: [0, 18, -20, 0], scale: [1, 0.96, 1.08, 1] }}
+            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute bottom-[14%] left-1/2 h-48 w-[60%] -translate-x-1/2 rounded-full bg-vault-red/10 blur-3xl"
+            animate={{ opacity: [0.18, 0.33, 0.18] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+          />
 
-      {/* Quick Replies */}
-      {messages.length <= 2 && !isStreaming && (
-        <div className="px-4 py-2 flex gap-2 flex-wrap border-t border-vault-border shrink-0">
-          {QUICK_REPLIES.map((reply) => (
-            <Button
-              key={reply}
-              variant="outline"
-              size="sm"
-              onClick={() => sendMessage(reply)}
-              className="text-xs bg-vault-surface hover:bg-vault-red/20 text-vault-text-light border-vault-border-accent px-3 py-1.5 rounded-full h-auto"
-              disabled={isStreaming}
+          <div className="relative flex h-full flex-col text-center">
+            <div
+              className={`flex min-h-0 flex-1 flex-col items-center pb-5 ${
+                isDynamicFormActive ? 'justify-start pt-2' : 'justify-center'
+              }`}
             >
-              {reply}
-            </Button>
-          ))}
+              <p className="mb-4 text-xs font-mono uppercase tracking-[0.32em] text-vault-gold/85">
+                {mode === 'appraisal' ? 'Guided Appraisal Surface' : mode === 'ops' ? 'Operations Messaging Surface' : 'Agent Messaging Surface'}
+              </p>
+
+              <div className="w-full max-w-6xl rounded-2xl bg-vault-black/38 px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.62),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:px-6 md:py-5">
+                <h2
+                  key={heroResponseKey}
+                  className={`text-balance font-display font-black drop-shadow-[0_12px_28px_rgba(0,0,0,0.9)] ${
+                    isDynamicFormActive ? 'line-clamp-2 whitespace-normal' : 'whitespace-pre-wrap'
+                  }`}
+                  style={{
+                    ...heroTextStyle,
+                    opacity: heroVisible ? 1 : 0,
+                    paddingTop: '0.06em',
+                    transition: `${heroTextStyle.transition}, opacity 180ms ease`,
+                  }}
+                >
+                  {typedHeroTokens}
+                  {shouldTypewriter && <span aria-hidden="true" className="hero-typewriter-caret" />}
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-auto flex w-full flex-col items-center gap-4 pb-3">
+              {latestVisualImageUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="overflow-hidden rounded-xl border border-vault-gold/30 bg-vault-black/50 p-1 shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
+                >
+                  <button
+                    type="button"
+                    onClick={handleLatestVisualImageClick}
+                    disabled={voiceMode}
+                    className="block disabled:cursor-default"
+                    aria-label="Open product card"
+                  >
+                    <img
+                      src={latestVisualImageUrl}
+                      alt="Inventory result"
+                      className="h-36 w-64 rounded-lg object-cover sm:h-44 sm:w-80"
+                    />
+                  </button>
+                </motion.div>
+              )}
+
+              {!voiceMode && latestVisualImageUrl && (
+                <p className="text-[11px] uppercase tracking-[0.12em] text-vault-text-muted">
+                  {isResolvingProductCard
+                    ? 'Loading product card...'
+                    : productCardError || 'Tap image for full product card'}
+                </p>
+              )}
+
+              {latestUserMessage?.content && (
+                <p className="max-w-2xl text-sm text-vault-text-muted">
+                  You said: {latestUserMessage.content}
+                </p>
+              )}
+
+              {!voiceMode && mode === 'general' && inventoryHighlights.length > 0 && (
+                <div className="w-full max-w-3xl rounded-xl border border-vault-gold/25 bg-vault-black/45 px-4 py-3 text-left backdrop-blur-sm">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-vault-gold/90">
+                    Top Matches
+                  </p>
+                  <div className="space-y-1.5">
+                    {inventoryHighlights.map((entry, index) => (
+                      <p key={`${entry}-${index}`} className="text-xs text-vault-text-light/95">
+                        {entry}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isStreaming && (
+                <div className="flex items-center gap-2 rounded-full border border-vault-gold/35 bg-vault-black/45 px-4 py-2 text-xs text-vault-text-light backdrop-blur-sm shadow-[0_0_35px_rgba(201,168,76,0.22)]">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '0ms' }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '150ms' }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '300ms' }} />
+                  <span className="ml-1 uppercase tracking-[0.14em]">Agent composing</span>
+                </div>
+              )}
+
+              {voiceMode && (
+                <div className="rounded-full border border-vault-gold/30 bg-vault-black/45 px-4 py-2 text-xs uppercase tracking-[0.14em] text-vault-text-light backdrop-blur-sm">
+                  {voice.status === 'connecting'
+                    ? 'Connecting voice'
+                    : voice.isUserSpeaking
+                      ? 'Listening'
+                      : voice.isSpeaking
+                        ? 'Assistant speaking'
+                        : 'Voice ready'}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Input Area */}
-      <form
-        onSubmit={handleSubmit}
-        className="p-3 border-t border-vault-border-accent flex gap-2 items-end shrink-0 bg-vault-surface-elevated"
-      >
-        {/* Image upload button */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-10 h-10 rounded-lg bg-vault-surface hover:bg-vault-red/20 text-vault-text-light shrink-0"
-          aria-label="Upload image"
-          disabled={isStreaming}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageUpload}
-        />
+        {mode === 'appraisal' && (
+          <div className="relative z-10 border-t border-vault-border-accent bg-vault-black/65 p-4 backdrop-blur-sm">
+            {appraisal.step === 1 && (
+              <div className="space-y-3">
+                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Item Category</Label>
+                <Select
+                  value={appraisal.category}
+                  onValueChange={(value) => setAppraisal((prev) => ({ ...prev, category: value, lastError: '' }))}
+                >
+                  <SelectTrigger className="border-vault-input-border bg-vault-input-bg text-vault-text-light">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent className="border-vault-border bg-vault-surface text-vault-text-light">
+                    {APPRAISAL_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  className="w-full bg-vault-red text-white hover:bg-vault-red-hover"
+                  onClick={() => {
+                    if (!appraisal.category) {
+                      setAppraisal((prev) => ({ ...prev, lastError: 'Please choose a category first.' }));
+                      return;
+                    }
+                    moveAppraisalStep(2);
+                  }}
+                >
+                  Continue
+                </Button>
+              </div>
+            )}
 
-        <Input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask me anything..."
-          className="flex-1 bg-vault-input-bg border-vault-input-border rounded-lg px-3 py-2.5 text-sm text-vault-text-light placeholder:text-vault-text-muted focus:border-vault-red/50 focus-visible:ring-vault-red/30"
-          disabled={isStreaming}
-        />
+            {appraisal.step === 2 && (
+              <div className="space-y-3">
+                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Description</Label>
+                <Textarea
+                  value={appraisal.description}
+                  onChange={(event) => setAppraisal((prev) => ({ ...prev, description: event.target.value, lastError: '' }))}
+                  placeholder="Example: 14k gold rope chain, 22 inches, light wear, no broken links"
+                  className="min-h-20 border-vault-input-border bg-vault-input-bg text-vault-text-light placeholder:text-vault-text-muted"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="border-vault-border text-vault-text-light" onClick={() => moveAppraisalStep(1)}>
+                    Back
+                  </Button>
+                  <Button className="bg-vault-red text-white hover:bg-vault-red-hover" onClick={() => moveAppraisalStep(3)}>
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            )}
 
-        <Button
-          type="submit"
-          size="icon"
-          disabled={isStreaming || !input.trim()}
-          className="w-10 h-10 rounded-lg bg-vault-red text-white hover:bg-vault-red-hover disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          aria-label="Send message"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </Button>
-      </form>
-    </div>
+            {appraisal.step === 3 && (
+              <div className="space-y-3">
+                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Upload Photos (up to 6)</Label>
+                <input
+                  ref={appraisalImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => {
+                    addAppraisalPhotos(event.target.files);
+                    event.target.value = '';
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full border-vault-border bg-vault-surface text-vault-text-light hover:bg-vault-surface-elevated"
+                  onClick={() => appraisalImageInputRef.current?.click()}
+                >
+                  Add Photos
+                </Button>
+                {appraisal.photos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {appraisal.photos.map((photo, index) => (
+                      <div key={photo.id} className="relative rounded-md border border-vault-border bg-vault-surface p-1">
+                        <img src={photo.preview} alt={photo.label} className="h-20 w-full rounded object-cover" />
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 rounded bg-vault-black/70 px-1.5 text-xs text-white"
+                          onClick={() => {
+                            setAppraisal((prev) => ({
+                              ...prev,
+                              photos: prev.photos.filter((candidate) => candidate.id !== photo.id),
+                            }));
+                          }}
+                        >
+                          ×
+                        </button>
+                        <p className="mt-1 truncate text-[10px] text-vault-text-muted">{PHOTO_LABELS[index] ?? photo.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="border-vault-border text-vault-text-light" onClick={() => moveAppraisalStep(2)}>
+                    Back
+                  </Button>
+                  <Button
+                    className="bg-vault-red text-white hover:bg-vault-red-hover"
+                    onClick={() => {
+                      if (appraisal.photos.length === 0) {
+                        setAppraisal((prev) => ({ ...prev, lastError: 'Upload at least one photo to continue.' }));
+                        return;
+                      }
+                      moveAppraisalStep(4);
+                    }}
+                  >
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {appraisal.step === 4 && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-lg border border-vault-border bg-vault-surface p-3">
+                  <p><span className="text-vault-text-muted">Category:</span> {appraisal.category}</p>
+                  <p><span className="text-vault-text-muted">Photos:</span> {appraisal.photos.length}</p>
+                  <p className="mt-1 line-clamp-3 text-vault-text-muted">
+                    {appraisal.description || 'No description provided'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="border-vault-border text-vault-text-light" onClick={() => moveAppraisalStep(3)}>
+                    Back
+                  </Button>
+                  <Button
+                    className="bg-vault-red text-white hover:bg-vault-red-hover"
+                    disabled={appraisal.submitting}
+                    onClick={submitGuidedAppraisal}
+                  >
+                    {appraisal.submitting ? 'Analyzing…' : 'Submit Appraisal'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {appraisal.step === 5 && (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-lg border border-vault-gold/30 bg-vault-gold/10 p-3 text-vault-text-light">
+                  {appraisal.resultSummary}
+                </div>
+                <Button className="w-full bg-vault-red text-white hover:bg-vault-red-hover" onClick={resetAppraisalFlow}>
+                  Start New Appraisal
+                </Button>
+              </div>
+            )}
+
+            {appraisal.lastError && (
+              <p className="mt-3 text-xs text-vault-danger">{appraisal.lastError}</p>
+            )}
+          </div>
+        )}
+
+        {activeForm && mode !== 'appraisal' && (
+          <DynamicFormPanel
+            formSpec={activeForm}
+            onSubmit={handleFormSubmit}
+            onCancel={() => {
+              setActiveForm(null);
+              voice.clearActiveForm();
+            }}
+          />
+        )}
+
+        {showQuickReplies && !voiceMode && (
+          <div className="relative z-10 flex flex-wrap gap-2 border-t border-vault-border bg-vault-surface/70 px-4 py-2 backdrop-blur-sm">
+            {QUICK_REPLIES[mode].map((reply) => (
+              <Button
+                key={reply}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto rounded-full border-vault-border bg-vault-surface px-3 py-1.5 text-xs text-vault-text-light hover:bg-vault-red/20"
+                onClick={() => {
+                  if (reply === 'Browse Inventory') {
+                    setOpen(false);
+                    router.push('/inventory');
+                    return;
+                  }
+                  sendChatMessage(reply);
+                }}
+              >
+                {reply}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {showTextInput && !voiceMode && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              sendChatMessage(input);
+            }}
+            className="relative z-10 flex items-end gap-2 border-t border-vault-border-accent bg-vault-surface-elevated/85 p-3 backdrop-blur-sm"
+          >
+            <input
+              ref={quickImageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQuickImageUpload}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-lg bg-vault-surface text-vault-text-light hover:bg-vault-red/20"
+              onClick={() => quickImageInputRef.current?.click()}
+              disabled={isStreaming}
+              aria-label="Upload image"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </Button>
+
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder={mode === 'ops' ? 'Ask an operations question…' : 'Ask a question…'}
+              disabled={isStreaming}
+              className="flex-1 border-vault-input-border bg-vault-input-bg text-vault-text-light placeholder:text-vault-text-muted"
+            />
+
+            <Button
+              type="submit"
+              size="icon"
+              disabled={isStreaming || !input.trim()}
+              className="h-10 w-10 rounded-lg bg-vault-red text-white hover:bg-vault-red-hover"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </Button>
+          </form>
+        )}
+      </DrawerContent>
+
+      <ProductCardDialog
+        open={Boolean(selectedProductCard)}
+        onOpenChange={(openState) => {
+          if (!openState) setSelectedProductCard(null);
+        }}
+        product={selectedProductCard}
+      />
+    </Drawer>
   );
 }

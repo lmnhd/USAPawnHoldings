@@ -1,17 +1,21 @@
 import { randomUUID } from "crypto";
 import { NextRequest } from "next/server";
 
-import { CATEGORY_TAGS, STORE_HOURS, VAULT_SYSTEM_PROMPT } from "@/lib/constants";
+import { APPRAISAL_MODE_PROMPT, CATEGORY_TAGS, GENERAL_SYSTEM_PROMPT, OPS_SYSTEM_PROMPT, STORE_HOURS, VAULT_SYSTEM_PROMPT } from "@/lib/constants";
 import { TABLES, putItem, scanItems } from "@/lib/dynamodb";
 import { createUnifiedConversationRecord } from "@/lib/conversation-model";
 import { ChatMessage, createChatCompletion } from "@/lib/openai";
 import { sendSMS } from "@/lib/twilio";
 import { getAgentConfigBatch } from "@/lib/agent-config";
 import { getStoreStatusInEastern } from "@/lib/store-status";
+import { searchInventoryItems } from "@/lib/inventory-search";
 
 type ChatRequestBody = {
   messages: ChatMessage[];
   conversationId?: string;
+  mode?: "general" | "appraisal" | "ops";
+  pagePath?: string;
+  roleHint?: "customer" | "staff_or_owner";
 };
 
 type ToolCall = {
@@ -22,6 +26,77 @@ type ToolCall = {
     arguments: string;
   };
 };
+
+type InventoryToolResult = {
+  __inventory_results?: boolean;
+  count?: number;
+  top_matches?: Array<Record<string, unknown>>;
+  display_image?: string | null;
+  query_category?: string;
+  query_keyword?: string;
+};
+
+type ScheduleVisitToolResult = {
+  scheduled?: boolean;
+  confirmation_code?: string;
+  lead_id?: string;
+  sms_status?: {
+    success?: boolean;
+    reason?: string;
+  };
+};
+
+function normalizeFormKey(key: string): string {
+  return key
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseSubmittedFormData(messageContent: string): Record<string, string> | null {
+  const marker = "Here is the requested information:";
+  if (!messageContent.includes(marker)) return null;
+
+  const afterMarker = messageContent.split(marker)[1] ?? "";
+  const lines = afterMarker
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return null;
+
+  const parsed: Record<string, string> = {};
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) continue;
+
+    const rawKey = line.slice(0, separatorIndex).trim();
+    const rawValue = line.slice(separatorIndex + 1).trim();
+    if (!rawKey || !rawValue) continue;
+
+    parsed[normalizeFormKey(rawKey)] = rawValue;
+  }
+
+  return Object.keys(parsed).length > 0 ? parsed : null;
+}
+
+function extractScheduleSubmission(formData: Record<string, string>) {
+  const customerName = formData.customer_name ?? formData.full_name ?? formData.name ?? "";
+  const phone = formData.phone ?? formData.phone_number ?? "";
+  const preferredTime = formData.preferred_time ?? formData.time ?? "";
+  const itemDescription = formData.item_description ?? "Pawn/valuation inquiry";
+
+  if (!customerName || !phone || !preferredTime) {
+    return null;
+  }
+
+  return {
+    customer_name: customerName,
+    phone,
+    preferred_time: preferredTime,
+    item_description: itemDescription,
+  };
+}
 
 function streamTextResponse(text: string): Response {
   const encoder = new TextEncoder();
@@ -44,6 +119,391 @@ function getStoreStatus() {
   return getStoreStatusInEastern(STORE_HOURS);
 }
 
+function getBasePromptForMode(mode: "general" | "appraisal" | "ops") {
+  if (mode === "appraisal") return APPRAISAL_MODE_PROMPT;
+  if (mode === "ops") return OPS_SYSTEM_PROMPT;
+  return GENERAL_SYSTEM_PROMPT || VAULT_SYSTEM_PROMPT;
+}
+
+function formatInventoryResponse(result: InventoryToolResult): string {
+  const count = Number(result.count ?? 0);
+  const topMatches = Array.isArray(result.top_matches) ? result.top_matches : [];
+
+  if (count <= 0 || topMatches.length === 0) {
+    return "I couldn't find a match in current inventory. Call (904) 744-5611 or visit 6132 Merrill Rd and we’ll check live floor stock for you.";
+  }
+
+  const preview = topMatches
+    .slice(0, 3)
+    .map((item, index) => {
+      const brand = String(item.brand ?? "").trim();
+      const model = String(item.model ?? "").trim();
+      const category = String(item.category ?? "item").trim();
+
+      const titleParts = [brand, model].filter(
+        (part) => part && part.toLowerCase() !== "unbranded"
+      );
+      const title = titleParts.length > 0 ? titleParts.join(" ") : category;
+      return `${index + 1}) ${title}`;
+    })
+    .filter(Boolean)
+    .join(" | ");
+
+  const noun = count === 1 ? "item" : "items";
+
+  if (count > 1) {
+    return `I found ${count} ${noun}. Top matches: ${preview}. Want details on #1, or see the next match?`;
+  }
+
+  return `I found ${count} ${noun}. Top match: ${preview}. Want details or something similar?`;
+}
+
+function clampInventoryIndex(index: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.max(0, Math.min(index, total - 1));
+}
+
+type InventoryDetailLevel = "brief" | "detailed";
+type InventoryQuestionIntent = "price" | "condition" | "brand" | "model" | "availability" | "details" | "none";
+
+function inferInventoryDetailLevel(lastUserText: string): InventoryDetailLevel {
+  const text = lastUserText.toLowerCase();
+  if (/\b(details?|elaborate|tell me more|more about|describe|condition|price|brand|model|specs?)\b/.test(text)) {
+    return "detailed";
+  }
+  return "brief";
+}
+
+function inferInventoryQuestionIntent(lastUserText: string): InventoryQuestionIntent {
+  const text = lastUserText.toLowerCase();
+
+  if (/\b(how much|price|cost|asking|tagged|what\s+is\s+the\s+price|what'?s\s+the\s+price)\b/.test(text)) {
+    return "price";
+  }
+  if (/\b(condition|any wear|scratches|damage|mint|clean)\b/.test(text)) {
+    return "condition";
+  }
+  if (/\b(brand|maker|who makes)\b/.test(text)) {
+    return "brand";
+  }
+  if (/\b(model|version|series)\b/.test(text)) {
+    return "model";
+  }
+  if (/\b(still available|available|in stock|on hand|do you have it)\b/.test(text)) {
+    return "availability";
+  }
+  if (/\b(details?|tell me more|more about|describe|specs?)\b/.test(text)) {
+    return "details";
+  }
+
+  return "none";
+}
+
+function normalizeLabelCandidate(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function isReasonableTitlePart(value: string): boolean {
+  if (!value) return false;
+  if (value.length > 36) return false;
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length > 5) return false;
+  if (/[,.;:!?]/.test(value)) return false;
+  return true;
+}
+
+function getItemShortTitle(item: Record<string, unknown>): string {
+  const brand = normalizeLabelCandidate(item.brand);
+  const model = normalizeLabelCandidate(item.model);
+  const category = normalizeLabelCandidate(item.category || "item");
+
+  const titleParts = [brand, model].filter((part) => {
+    if (!isReasonableTitlePart(part)) return false;
+    return part.toLowerCase() !== "unbranded";
+  });
+
+  return titleParts.length > 0 ? titleParts.join(" ") : category;
+}
+
+function getItemBriefDescription(item: Record<string, unknown>, maxLength?: number): string {
+  const raw = String(item.description ?? "").trim();
+  if (!raw) return "";
+
+  const normalized = raw.replace(/^this is\s+/i, "").replace(/\s+/g, " ");
+  if (!maxLength || maxLength <= 0 || normalized.length <= maxLength) return normalized;
+
+  const sentenceEnd = normalized.slice(0, maxLength).lastIndexOf(".");
+  if (sentenceEnd >= 45) {
+    return normalized.slice(0, sentenceEnd + 1);
+  }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}…`;
+}
+
+function extractDisplayImage(item: Record<string, unknown>): string | null {
+  const imageUrl = String(item.image_url ?? "").trim();
+  if (imageUrl) return imageUrl;
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const firstImage = String(item.images[0] ?? "").trim();
+    return firstImage || null;
+  }
+
+  return null;
+}
+
+function getItemNumericPrice(item: Record<string, unknown>): number | null {
+  const rawPrice = item.price;
+  const numericPrice = typeof rawPrice === "number" ? rawPrice : Number(rawPrice);
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) return null;
+  return numericPrice;
+}
+
+function ensureTerminalPunctuation(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  if (/[.!?…]$/.test(trimmed)) return trimmed;
+  return `${trimmed}.`;
+}
+
+function getItemDetailTail(item: Record<string, unknown>): string {
+  const condition = normalizeLabelCandidate(item.condition);
+  const rawPrice = item.price;
+  const numericPrice = typeof rawPrice === "number" ? rawPrice : Number(rawPrice);
+  const hasPrice = Number.isFinite(numericPrice) && numericPrice > 0;
+
+  const detailParts: string[] = [];
+  if (condition) detailParts.push(`condition: ${condition.toLowerCase()}`);
+  if (hasPrice) detailParts.push(`tagged at $${Math.round(numericPrice)}`);
+
+  if (detailParts.length === 0) return "";
+  return detailParts.join(", ");
+}
+
+function extractShownMatchIndexFromAssistant(message: string): number | null {
+  const explicit = message.match(/showing\s*#\s*(\d+)/i);
+  if (explicit) {
+    const value = Number(explicit[1]);
+    if (Number.isFinite(value) && value > 0) return value - 1;
+  }
+
+  const topMatch = message.match(/top\s+match:\s*(\d+)\)/i);
+  if (topMatch) {
+    const value = Number(topMatch[1]);
+    if (Number.isFinite(value) && value > 0) return value - 1;
+  }
+
+  return null;
+}
+
+function inferInventoryRequestedIndex(
+  lastUserText: string,
+  previousAssistantText: string | null,
+): number {
+  const userText = lastUserText.toLowerCase();
+  const previousAssistantLower = (previousAssistantText ?? "").toLowerCase();
+  const previousIndex = previousAssistantText
+    ? extractShownMatchIndexFromAssistant(previousAssistantText)
+    : null;
+
+  const asksForMoreOnCurrent = /\b(that one|this one|it|same one|more on|more about|tell me more|details?)\b/.test(userText);
+  const asksForNext = /\bnext\b|\banother\b|\bother one\b|\bone more\b/.test(userText);
+  const asksForPrevious = /\bprevious\b|\bprev\b|\bback\b/.test(userText);
+  const isAffirmative = /^(yes|yeah|yep|yup|sure|ok|okay|please|do it|go ahead|sounds good|why not)\b/.test(userText.trim());
+  const promptedForAnother = /want to see another one\?|see the next match\?|see another/.test(previousAssistantLower);
+  const promptedForBack = /want to go back to the other one\?|go back to the other one/.test(previousAssistantLower);
+
+  const ordinalMap: Array<{ regex: RegExp; index: number }> = [
+    { regex: /#\s*1\b|\bfirst\b/, index: 0 },
+    { regex: /#\s*2\b|\bsecond\b/, index: 1 },
+    { regex: /#\s*3\b|\bthird\b/, index: 2 },
+    { regex: /#\s*4\b|\bfourth\b/, index: 3 },
+    { regex: /#\s*5\b|\bfifth\b/, index: 4 },
+  ];
+
+  for (const candidate of ordinalMap) {
+    if (candidate.regex.test(userText)) {
+      return candidate.index;
+    }
+  }
+
+  if (isAffirmative && promptedForAnother) {
+    if (previousIndex != null) return previousIndex + 1;
+    return 1;
+  }
+
+  if (isAffirmative && promptedForBack) {
+    if (previousIndex != null) return Math.max(0, previousIndex - 1);
+    return 0;
+  }
+
+  if (asksForNext) {
+    if (previousIndex != null) return previousIndex + 1;
+    return 1;
+  }
+
+  if (asksForPrevious) {
+    if (previousIndex != null) return Math.max(0, previousIndex - 1);
+    return 0;
+  }
+
+  if (asksForMoreOnCurrent && previousIndex != null) {
+    return previousIndex;
+  }
+
+  if (asksForMoreOnCurrent) {
+    if (promptedForBack) return Number.MAX_SAFE_INTEGER;
+    if (promptedForAnother) return 0;
+  }
+
+  return 0;
+}
+
+function formatInventoryResponseWithSelection(
+  result: InventoryToolResult,
+  requestedIndex: number,
+  lastUserText: string,
+): string {
+  const count = Number(result.count ?? 0);
+  const topMatches = Array.isArray(result.top_matches) ? result.top_matches : [];
+
+  if (count <= 0 || topMatches.length === 0) {
+    return formatInventoryResponse(result);
+  }
+
+  const selectedIndex = clampInventoryIndex(requestedIndex, topMatches.length);
+  const selected = topMatches[selectedIndex];
+  const title = getItemShortTitle(selected);
+  const brief = getItemBriefDescription(selected);
+  const questionIntent = inferInventoryQuestionIntent(lastUserText);
+  const numericPrice = getItemNumericPrice(selected);
+  const condition = normalizeLabelCandidate(selected.condition);
+  const brand = normalizeLabelCandidate(selected.brand);
+  const model = normalizeLabelCandidate(selected.model);
+
+  let lead: string;
+  switch (questionIntent) {
+    case "price":
+      lead = numericPrice != null
+        ? `I found ${title} — it’s tagged at $${Math.round(numericPrice)}.`
+        : `I found ${title} — I don’t have a tagged price listed yet, but staff can quote it quickly.`;
+      break;
+    case "condition":
+      lead = condition
+        ? `I found ${title} — condition is listed as ${condition.toLowerCase()}.`
+        : `I found ${title} — condition isn’t listed, but I can have staff verify it for you.`;
+      break;
+    case "brand":
+      lead = brand
+        ? `I found ${title} — brand is ${brand}.`
+        : `I found ${title} — brand isn’t explicitly listed in this record.`;
+      break;
+    case "model":
+      lead = model
+        ? `I found ${title} — model is ${model}.`
+        : `I found ${title} — model isn’t explicitly listed in this record.`;
+      break;
+    case "availability":
+      lead = `I found ${title} — it shows in current inventory.`;
+      break;
+    case "details":
+    case "none":
+    default:
+      lead = brief ? `I found ${title} — ${brief}` : `I found ${title}.`;
+      break;
+  }
+
+  if (count > 1) {
+    if (selectedIndex >= topMatches.length - 1) {
+      return `${lead} Want to go back to the other one?`;
+    }
+    return `${lead} Want to see another one?`;
+  }
+
+  return lead;
+}
+
+function formatInventoryImageReply(
+  result: InventoryToolResult,
+  requestedIndex: number,
+  detailLevel: InventoryDetailLevel,
+  lastUserText: string,
+): string {
+  const topMatches = Array.isArray(result.top_matches) ? result.top_matches : [];
+  if (topMatches.length === 0) return formatInventoryResponse(result);
+
+  const selectedIndex = clampInventoryIndex(requestedIndex, topMatches.length);
+  const selected = topMatches[selectedIndex];
+  const count = Number(result.count ?? topMatches.length);
+  const title = getItemShortTitle(selected);
+  const brief = getItemBriefDescription(selected, detailLevel === "detailed" ? undefined : undefined);
+  const questionIntent = inferInventoryQuestionIntent(lastUserText);
+  const numericPrice = getItemNumericPrice(selected);
+  const condition = normalizeLabelCandidate(selected.condition);
+  const brand = normalizeLabelCandidate(selected.brand);
+  const model = normalizeLabelCandidate(selected.model);
+
+  const questionTail = count > 1
+    ? selectedIndex >= topMatches.length - 1
+      ? " Want to go back to the other one?"
+      : " Want to see another one?"
+    : "";
+
+  if (questionIntent === "price") {
+    if (numericPrice != null) {
+      return `I found ${title} — it’s tagged at $${Math.round(numericPrice)}.${questionTail}`;
+    }
+    return `I found ${title} — I don’t have a tagged price listed yet, but staff can quote it quickly.${questionTail}`;
+  }
+
+  if (questionIntent === "condition") {
+    if (condition) {
+      return `I found ${title} — condition is listed as ${condition.toLowerCase()}.${questionTail}`;
+    }
+    return `I found ${title} — condition isn’t listed, but I can have staff verify it for you.${questionTail}`;
+  }
+
+  if (questionIntent === "brand") {
+    if (brand) {
+      return `I found ${title} — brand is ${brand}.${questionTail}`;
+    }
+    return `I found ${title} — brand isn’t explicitly listed in this record.${questionTail}`;
+  }
+
+  if (questionIntent === "model") {
+    if (model) {
+      return `I found ${title} — model is ${model}.${questionTail}`;
+    }
+    return `I found ${title} — model isn’t explicitly listed in this record.${questionTail}`;
+  }
+
+  if (questionIntent === "availability") {
+    return `I found ${title} — it shows in current inventory.${questionTail}`;
+  }
+
+  if (detailLevel === "detailed") {
+    const detailTail = getItemDetailTail(selected);
+    const briefSentence = brief ? ensureTerminalPunctuation(brief) : "";
+    if (brief && detailTail) {
+      return `I found ${title} — ${briefSentence} ${detailTail}.${questionTail}`;
+    }
+    if (brief) {
+      return `I found ${title} — ${briefSentence}${questionTail}`;
+    }
+    if (detailTail) {
+      return `I found ${title}; ${detailTail}.${questionTail}`;
+    }
+    return `I found ${title}.${questionTail}`;
+  }
+
+  if (brief) {
+    const briefSentence = ensureTerminalPunctuation(brief);
+    return `I found ${title} — ${briefSentence}${questionTail}`;
+  }
+
+  return `I found ${title}.${questionTail}`;
+}
+
 async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
   const args = (() => {
     try {
@@ -60,7 +520,7 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
     case "appraise_item": {
       return {
         message:
-          "For the most accurate appraisal, please continue on /appraise or upload a clear photo with item details.",
+          "For the most accurate appraisal, switch to Appraisal mode in Hero Chat and upload clear multi-angle photos with item details.",
         category: args.category ?? null,
       };
     }
@@ -68,14 +528,40 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
     case "schedule_visit": {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const phone = String(args.phone ?? "");
+      const customerName = String(args.customer_name ?? args.name ?? "");
       const preferredTime = String(args.preferred_time ?? "your requested time");
+      const itemDescription = String(args.item_description ?? "Pawn/valuation inquiry");
+      const estimatedValueRaw = Number(args.estimated_value ?? 0);
+      const estimatedValue = Number.isFinite(estimatedValueRaw) ? estimatedValueRaw : 0;
+      const now = new Date().toISOString();
+      const leadId = randomUUID();
+      const appointmentId = randomUUID();
 
       const smsBody = `USA Pawn Holdings appointment confirmed for ${preferredTime}. Confirmation: ${code}. Visit us at 6132 Merrill Rd Ste 1, Jacksonville, FL 32277.`;
       const sms = await sendSMS(phone, smsBody);
 
+      await putItem(TABLES.leads, {
+        lead_id: leadId,
+        appointment_id: appointmentId,
+        type: "appointment",
+        source: "chat",
+        customer_name: customerName,
+        phone,
+        preferred_time: preferredTime,
+        scheduled_time: preferredTime,
+        item_description: itemDescription,
+        estimated_value: estimatedValue,
+        confirmation_code: code,
+        status: "scheduled",
+        sms_sent: sms.success === true,
+        timestamp: now,
+        updated_at: now,
+      });
+
       return {
         scheduled: true,
         confirmation_code: code,
+        lead_id: leadId,
         sms_status: sms,
       };
     }
@@ -83,7 +569,6 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
     case "check_inventory": {
       const category = String(args.category ?? "").toLowerCase();
       const keyword = String(args.keyword ?? "").toLowerCase();
-
       console.log(`   🔍 Searching inventory - Category: "${category}", Keyword: "${keyword}"`);
 
       const all = await scanItems<Record<string, unknown>>(TABLES.inventory);
@@ -94,26 +579,21 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
         console.log(`   📋 Sample item structure:`, JSON.stringify(all[0], null, 2).substring(0, 500));
       }
 
-      const filtered = all.filter((item) => {
-        const itemCategory = String(item.category ?? "").toLowerCase();
-        const brand = String(item.brand ?? "").toLowerCase();
-        const description = String(item.description ?? "").toLowerCase();
+      const searchResult = searchInventoryItems(all, { category, keyword, limit: 5 });
+      const filteredCount = searchResult.count;
+      const usedKeywordFallback = searchResult.usedKeywordFallback;
+      const topMatches = searchResult.topMatches;
 
-        const categoryMatch = !category || itemCategory.includes(category);
-        const keywordMatch = !keyword || 
-                            brand.includes(keyword) || 
-                            description.includes(keyword) ||
-                            itemCategory.includes(keyword);
-        
-        return categoryMatch && keywordMatch;
-      });
-
-      console.log(`   ✓ Filtered results: ${filtered.length} items matching`);
-      if (filtered.length > 0) {
-        console.log(`   Top match: ${String(filtered[0].category)} - ${String(filtered[0].description)}`);
-        console.log(`   Top match brand: "${String(filtered[0].brand ?? '')}"`);
+      if (usedKeywordFallback) {
+        console.log("   ↪️  Strict category match returned 0; using keyword-only fallback.");
+      }
+      console.log(`   ✓ Filtered results: ${filteredCount} items matching`);
+      if (topMatches.length > 0) {
+        const first = topMatches[0];
+        console.log(`   Top match: ${String(first.category)} - ${String(first.description)}`);
+        console.log(`   Top match brand: "${String(first.brand ?? '')}"`);
         // Check both image_url (from seed) and images array (from UI)
-        const imageField = filtered[0].image_url || (Array.isArray(filtered[0].images) && filtered[0].images[0]);
+        const imageField = first.image_url || (Array.isArray(first.images) && first.images[0]);
         console.log(`   Top match image field: "${String(imageField ?? 'EMPTY/NULL')}"`);
       } else {
         // Debug: Show what jewelry items we have if keyword was jewelry-related
@@ -126,27 +606,21 @@ async function handleToolCall(toolCall: ToolCall, req: NextRequest) {
         }
       }
 
-      const topMatches = filtered.slice(0, 5);
-      
-      // Return inventory items with a special flag for image display
-      // Check both image_url (from seed script) and images array (from UI-created items)
-      let displayImage: string | null = null;
-      if (topMatches.length > 0) {
-        const firstItem = topMatches[0];
-        displayImage = String(firstItem.image_url ?? "") || 
-                      (Array.isArray(firstItem.images) && firstItem.images.length > 0 ? String(firstItem.images[0]) : null);
-      }
+      const displayImage = searchResult.displayImage;
       console.log(`   📸 Display image for response: "${displayImage || 'NONE'}"`);
       
       const result = {
         __inventory_results: true,
         categories: CATEGORY_TAGS,
-        count: filtered.length,
+        count: filteredCount,
         top_matches: topMatches,
+        query_category: category,
+        query_keyword: keyword,
+        category_fallback_used: usedKeywordFallback,
         // Include image from first match for chat display
         display_image: displayImage,
         display_summary: topMatches.length > 0 
-          ? `Found ${filtered.length} item${filtered.length !== 1 ? 's' : ''} matching your search. Top result: ${String(topMatches[0].category ?? "")} - ${String(topMatches[0].description ?? "")}`
+          ? `Found ${filteredCount} item${filteredCount !== 1 ? 's' : ''} matching your search. Top result: ${String(topMatches[0].category ?? "")} - ${String(topMatches[0].description ?? "")}`
           : `No items found matching your search.`,
       };
 
@@ -225,6 +699,9 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as ChatRequestBody;
     const userMessages = Array.isArray(body.messages) ? body.messages : [];
     conversationId = body.conversationId ?? conversationId;
+    const mode = body.mode ?? "general";
+    const pagePath = body.pagePath ?? "unknown";
+    const roleHint = body.roleHint ?? "customer";
 
     console.log(`\n${'='.repeat(70)}`);
     console.log(`🎯 CHAT REQUEST #${conversationId.slice(0, 8)}`);
@@ -242,7 +719,9 @@ export async function POST(req: NextRequest) {
     const customPrompt = agentConfig["agent_chat_system_prompt"];
     let systemPrompt = customPrompt && customPrompt.trim().length > 0
       ? customPrompt
-      : VAULT_SYSTEM_PROMPT;
+      : getBasePromptForMode(mode);
+
+    systemPrompt += `\n\nSESSION CONTEXT:\n- Mode: ${mode}\n- Page: ${pagePath}\n- Role hint: ${roleHint}`;
 
     // Append tone instruction
     const tone = agentConfig["agent_chat_tone"];
@@ -283,6 +762,13 @@ export async function POST(req: NextRequest) {
       systemPrompt += `\n\nCURRENT SPECIAL INFORMATION (from store owner — reference when relevant):\n${specialInfo}`;
     }
 
+    const chatGreeting = agentConfig["agent_chat_greeting"];
+    if (chatGreeting && chatGreeting.trim().length > 0 && userMessages.length <= 1) {
+      systemPrompt += `\n\nGREETING OVERRIDE:\nIf this is the user's first interaction in this session, open with this exact greeting:\n"${chatGreeting.trim()}"`;
+    } else if (userMessages.length <= 1) {
+      systemPrompt += `\n\nDEFAULT OPENING:\nFor a new session, introduce yourself as Merrill Vault Assistant.`;
+    }
+
     console.log(`\n📋 SYSTEM PROMPT (first 300 chars):`);
     console.log(`   ${systemPrompt.substring(0, 300)}${systemPrompt.length > 300 ? '...' : ''}`);
 
@@ -290,6 +776,60 @@ export async function POST(req: NextRequest) {
       { role: "system", content: systemPrompt },
       ...userMessages,
     ];
+
+    const lastUserMessage = [...userMessages].reverse().find((message) => message.role === "user");
+    const previousAssistantMessage = [...userMessages].reverse().find((message) => message.role === "assistant");
+    const parsedFormData = typeof lastUserMessage?.content === "string"
+      ? parseSubmittedFormData(lastUserMessage.content)
+      : null;
+    const schedulePayload = parsedFormData ? extractScheduleSubmission(parsedFormData) : null;
+    const lastUserText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
+    const inventoryRequestedIndex = inferInventoryRequestedIndex(
+      lastUserText,
+      typeof previousAssistantMessage?.content === "string" ? previousAssistantMessage.content : null,
+    );
+    const inventoryDetailLevel = inferInventoryDetailLevel(lastUserText);
+
+    if (schedulePayload) {
+      const scheduleToolCall: ToolCall = {
+        id: `direct_schedule_${Date.now()}`,
+        type: "function",
+        function: {
+          name: "schedule_visit",
+          arguments: JSON.stringify(schedulePayload),
+        },
+      };
+
+      const scheduleResult = (await handleToolCall(scheduleToolCall, req)) as ScheduleVisitToolResult;
+      const smsSuccess = scheduleResult.sms_status?.success === true;
+      const finalText = scheduleResult.scheduled
+        ? smsSuccess
+          ? `Appointment confirmed for ${schedulePayload.preferred_time}. Confirmation code: ${scheduleResult.confirmation_code}. We sent your SMS details now.`
+          : `Appointment confirmed for ${schedulePayload.preferred_time}. Confirmation code: ${scheduleResult.confirmation_code}. SMS failed to send, so please call (904) 744-5611 if you need updates.`
+        : "I couldn't finalize your appointment yet. Please retry or call (904) 744-5611 and we’ll book it manually.";
+
+      const now = new Date().toISOString();
+      const unifiedConversation = createUnifiedConversationRecord({
+        conversation_id: conversationId,
+        source: mode === "appraisal" ? "appraise" : "web_chat",
+        channel: "web",
+        messages: [...userMessages, { role: "assistant", content: finalText }] as unknown as Array<Record<string, unknown>>,
+        started_at: now,
+        ended_at: now,
+        source_metadata: {
+          mode,
+          page_path: pagePath,
+          role_hint: roleHint,
+          auto_schedule_from_form: true,
+        },
+      });
+
+      await putItem(TABLES.conversations, unifiedConversation);
+
+      const response = streamTextResponse(finalText);
+      response.headers.set("X-Conversation-ID", conversationId);
+      return response;
+    }
 
     console.log(`\n🤖 LLM CALL #1 (without tool results)`);
     const first = await createChatCompletion(baseMessages);
@@ -308,6 +848,11 @@ export async function POST(req: NextRequest) {
     if (toolCalls.length > 0) {
       const toolMessages: ChatMessage[] = [];
       let inventoryImageUrl: string | null = null;
+      let inventorySelectedItem: Record<string, unknown> | null = null;
+      let inventoryDirectText: string | null = null;
+      let inventoryImageText: string | null = null;
+      const hasOnlyInventoryTools = toolCalls.every((call) => call.function.name === "check_inventory");
+      let hadInventoryToolCall = false;
 
       for (const call of toolCalls) {
         const result = await handleToolCall(call, req);
@@ -319,11 +864,16 @@ export async function POST(req: NextRequest) {
           const now = new Date().toISOString();
           const formConversation = createUnifiedConversationRecord({
             conversation_id: conversationId,
-            source: "web_chat",
+            source: mode === "appraisal" ? "appraise" : "web_chat",
             channel: "web",
             messages: [...userMessages, { role: "assistant", content: "[Form Request]" }] as unknown as Array<Record<string, unknown>>,
             started_at: now,
             ended_at: now,
+            source_metadata: {
+              mode,
+              page_path: pagePath,
+              role_hint: roleHint,
+            },
           });
           await putItem(TABLES.conversations, formConversation);
 
@@ -335,10 +885,23 @@ export async function POST(req: NextRequest) {
 
         // Special handling for inventory results with images
         if (call.function.name === "check_inventory" && (result as { __inventory_results?: boolean }).__inventory_results) {
-          const invResult = result as { display_image?: string | null };
-          if (invResult.display_image) {
+          hadInventoryToolCall = true;
+          const invResult = result as InventoryToolResult;
+          const topMatches = Array.isArray(invResult.top_matches) ? invResult.top_matches : [];
+          const selectedIndex = clampInventoryIndex(inventoryRequestedIndex, topMatches.length);
+          const selectedItem = topMatches[selectedIndex];
+          const selectedImage = selectedItem ? extractDisplayImage(selectedItem) : null;
+
+          if (selectedImage) {
+            inventoryImageUrl = selectedImage;
+            inventorySelectedItem = selectedItem ?? null;
+            inventoryImageText = formatInventoryImageReply(invResult, inventoryRequestedIndex, inventoryDetailLevel, lastUserText);
+          } else if (invResult.display_image) {
             inventoryImageUrl = invResult.display_image;
+            inventorySelectedItem = selectedItem ?? null;
+            inventoryImageText = formatInventoryImageReply(invResult, inventoryRequestedIndex, inventoryDetailLevel, lastUserText);
           }
+          inventoryDirectText = formatInventoryResponseWithSelection(invResult, inventoryRequestedIndex, lastUserText);
         }
 
         toolMessages.push({
@@ -348,45 +911,67 @@ export async function POST(req: NextRequest) {
         } as ChatMessage);
       }
 
-      console.log(`\n🤖 LLM CALL #2 (with tool results)`);
-      console.log(`   Inventory image URL before 2nd call: "${inventoryImageUrl || 'NULL/UNDEFINED'}"`);
-      
-      const second = await createChatCompletion(
-        [
-          ...baseMessages,
-          {
-            role: "assistant",
-            content: assistantMessage?.content ?? "",
-            tool_calls: toolCalls,
-          } as ChatMessage,
-          ...toolMessages,
-        ],
-      );
+      if (hasOnlyInventoryTools && inventoryDirectText) {
+        finalText = inventoryDirectText;
+      } else {
+        console.log(`\n🤖 LLM CALL #2 (with tool results)`);
+        console.log(`   Inventory image URL before 2nd call: "${inventoryImageUrl || 'NULL/UNDEFINED'}"`);
 
-      finalText =
-        second.choices?.[0]?.message?.content ??
-        finalText ??
-        "Thanks for reaching out to USA Pawn Holdings. How can I help next?";
+        const inventoryTruthGuard: ChatMessage | null = hadInventoryToolCall
+          ? {
+              role: "system",
+              content:
+                "Tool results are authoritative. If check_inventory returned items, do not claim you lack access or that inventory is unavailable. Summarize the returned matches clearly.",
+            }
+          : null;
+
+        const second = await createChatCompletion(
+          [
+            ...baseMessages,
+            ...(inventoryTruthGuard ? [inventoryTruthGuard] : []),
+            {
+              role: "assistant",
+              content: assistantMessage?.content ?? "",
+              tool_calls: toolCalls,
+            } as ChatMessage,
+            ...toolMessages,
+          ],
+        );
+
+        finalText =
+          second.choices?.[0]?.message?.content ??
+          finalText ??
+          "Thanks for reaching out to USA Pawn Holdings. How can I help next?";
+      }
       
       console.log(`   Final response: "${finalText?.substring(0, 150)}${finalText && finalText.length > 150 ? '...' : ''}"`);
       
       // If we have an inventory image, return special response with image URL
       if (inventoryImageUrl) {
+        if (inventoryImageText) {
+          finalText = inventoryImageText;
+        }
         console.log(`   ✓ Inventory image attached: ${inventoryImageUrl}`);
         const responseWithImage = JSON.stringify({
           __with_image: true,
           content: finalText,
           image_url: inventoryImageUrl,
+          product_item: inventorySelectedItem,
         });
 
         const now = new Date().toISOString();
         const imageConversation = createUnifiedConversationRecord({
           conversation_id: conversationId,
-          source: "web_chat",
+          source: mode === "appraisal" ? "appraise" : "web_chat",
           channel: "web",
           messages: [...userMessages, { role: "assistant", content: finalText, image_url: inventoryImageUrl }] as unknown as Array<Record<string, unknown>>,
           started_at: now,
           ended_at: now,
+          source_metadata: {
+            mode,
+            page_path: pagePath,
+            role_hint: roleHint,
+          },
         });
         await putItem(TABLES.conversations, imageConversation);
         
@@ -412,11 +997,16 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const unifiedConversation = createUnifiedConversationRecord({
       conversation_id: conversationId,
-      source: "web_chat",
+      source: mode === "appraisal" ? "appraise" : "web_chat",
       channel: "web",
       messages: completeMessages as unknown as Array<Record<string, unknown>>,
       started_at: now,
       ended_at: now,
+      source_metadata: {
+        mode,
+        page_path: pagePath,
+        role_hint: roleHint,
+      },
     });
 
     await putItem(TABLES.conversations, unifiedConversation);

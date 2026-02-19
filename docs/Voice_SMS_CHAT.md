@@ -6,7 +6,8 @@
 >
 > **Origin**: USA Pawn Holdings PoC (Feb 2026)
 > **Author**: Auto-generated from lived debugging session
-> **Status**: Production-verified — all three channels operational
+> **Status**: Production-verified — all FOUR channels operational
+> **Channels**: Text Chat, SMS/MMS, Phone Voice, Browser Voice (WebRTC)
 
 ---
 
@@ -20,7 +21,8 @@
    - [5.1 Project Structure](#51-project-structure)
    - [5.2 Web Chat (Channel 1)](#52-web-chat-channel-1)
    - [5.3 SMS/MMS (Channel 2)](#53-smsmms-channel-2)
-   - [5.4 Voice (Channel 3)](#54-voice-channel-3)
+   - [5.4 Phone Voice (Channel 3)](#54-phone-voice-channel-3)
+   - [5.5 Browser Voice Chat (Channel 4)](#55-browser-voice-chat-channel-4)
 6. [Hosting & Deployment](#6-hosting--deployment)
 7. [Issues Encountered & Solutions](#7-issues-encountered--solutions)
 8. [Environment Variables Reference](#8-environment-variables-reference)
@@ -32,34 +34,80 @@
 
 ---
 
+## Latest Updates (February 2026)
+
+### Channel 4 Added: Browser Voice Chat (WebRTC)
+
+This document now covers **FOUR independent channels** (previously three). The new browser-based voice chat feature provides a modern, cost-effective alternative to phone-based voice interactions.
+
+**What's new:**
+- **Direct WebRTC connection** from browser to OpenAI Realtime API (no relay server needed)
+- **Zero infrastructure cost** — no Render.com, no Twilio Voice charges
+- **Client-side tool execution** — function calls routed to Next.js APIs from browser
+- **Full image support** — Tool responses display images inline in voice transcripts
+- **Seamless mode switching** — Voice transcripts merge into text chat history
+- **Production-ready** — Deployed on Vercel with ephemeral token authentication
+
+**Key differences from phone voice:**
+- **Infrastructure**: Browser → OpenAI (vs. Browser → Twilio → Render → OpenAI)
+- **Cost**: $0 infra + OpenAI only (vs. $7-35/mo for phone voice setup)
+- **UX**: Same chat widget, toggle voice mode (vs. separate phone call)
+- **Features**: Images, transcript persistence, tool execution (vs. phone-only audio)
+
+**New sections in this document:**
+- Section 3: Channel 4 overview
+- Section 5.5: Complete browser voice implementation guide (600+ lines)
+- Section 7: Issues #7-8 (image display, transcript persistence)
+- Section 10: Browser voice testing procedures
+- Section 11: Updated cost comparison (browser vs phone voice)
+
+**When to use browser voice vs phone voice:**
+- **Browser voice**: Modern websites, mobile-first apps, cost-sensitive projects
+- **Phone voice**: Customer service lines, accessibility requirements, legacy phone users
+
+---
+
 ## 1. System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        CUSTOMER TOUCHPOINTS                        │
-├──────────────┬──────────────────┬──────────────────────────────────┤
-│  Web Chat    │   SMS / MMS      │   Phone Call (Voice)             │
-│  (browser)   │   (text/photo)   │   (dial Twilio number)          │
-└──────┬───────┴────────┬─────────┴────────────┬────────────────────┘
-       │                │                      │
-       ▼                ▼                      ▼
-┌──────────────────────────────────────┐  ┌─────────────────────────┐
-│        VERCEL (Next.js App)          │  │   TWILIO PLATFORM       │
-│                                      │  │                         │
-│  /api/chat      → GPT-5-mini        │  │  Phone # → Webhook      │
-│  /api/twilio/message → GPT-4o/mini  │◄─┤  SMS # → Webhook        │
-│  /api/twilio/voice   → TwiML        │  │  Media Streams          │
-│                                      │  └────────────┬────────────┘
-└──────────────────────────────────────┘               │
-                                                       │ WebSocket
-                                                       ▼
-                                          ┌─────────────────────────┐
-                                          │  RENDER.COM             │
-                                          │  (Voice Relay Server)   │
-                                          │                         │
-                                          │  Twilio ←→ WebSocket    │
-                                          │  ←→ OpenAI Realtime API │
-                                          └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CUSTOMER TOUCHPOINTS                                │
+├──────────────┬──────────────────┬──────────────────┬──────────────────────┤
+│  Web Chat    │   SMS / MMS      │  Phone Call      │  Web Voice Chat     │
+│  (text)      │   (text/photo)   │  (Twilio number) │  (browser mic)      │
+└──────┬───────┴────────┬─────────┴────────┬─────────┴──────────┬───────────┘
+       │                │                  │                    │
+       ▼                ▼                  ▼                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         VERCEL (Next.js App)                            │
+│                                                                          │
+│  /api/chat               → GPT-5-mini (function tools)                 │
+│  /api/twilio/message     → GPT-4o-mini (SMS) / GPT-4o (Vision/MMS)     │
+│  /api/twilio/voice       → TwiML → Render relay                        │
+│  /api/realtime-session   → OpenAI ephemeral token (WebRTC)             │
+│                                                                          │
+└────────────────────────────┬──────────────────────────────┬─────────────┘
+                             │                              │
+                   Twilio Phone/SMS                  Browser WebRTC
+                             │                              │
+                             ▼                              ▼
+              ┌──────────────────────────┐    ┌──────────────────────────┐
+              │  TWILIO PLATFORM         │    │  OPENAI REALTIME API     │
+              │                          │    │  (gpt-4o-realtime)       │
+              │  Phone # → Webhook       │    │                          │
+              │  SMS # → Webhook         │    │  Direct WebRTC from      │
+              │  Media Streams           │    │  browser via             │
+              └────────────┬─────────────┘    │  RTCPeerConnection       │
+                           │                   └──────────────────────────┘
+                           │ WebSocket
+                           ▼
+              ┌──────────────────────────┐
+              │  RENDER.COM              │
+              │  (Phone Voice Relay)     │
+              │                          │
+              │  Twilio Media Stream     │
+              │  ←→ OpenAI Realtime API  │
+              └──────────────────────────┘
 ```
 
 ### Data Flow Per Channel
@@ -69,7 +117,8 @@
 | **Web Chat** | User types in chat widget | `POST /api/chat` on Vercel | GPT-5-mini (with function tools) | Streamed text |
 | **SMS** | Customer texts Twilio number | `POST /api/twilio/message` on Vercel | GPT-4o-mini | TwiML `<Message>` |
 | **MMS** | Customer texts photo to Twilio number | `POST /api/twilio/message` on Vercel | GPT-4o (Vision) | TwiML `<Message>` |
-| **Voice** | Customer calls Twilio number | `POST /api/twilio/voice` → TwiML → WebSocket relay → OpenAI Realtime | GPT-4o Realtime | Bidirectional audio stream |
+| **Phone Voice** | Customer calls Twilio number | `POST /api/twilio/voice` → TwiML → WebSocket relay → OpenAI Realtime | GPT-4o Realtime | Bidirectional audio stream |
+| **Browser Voice** | User clicks mic button in chat widget | Browser WebRTC → `POST /api/realtime-session` (ephemeral token) → OpenAI Realtime | GPT-4o Realtime (gpt-4o-realtime-preview-2024-12-17) | Bidirectional audio + transcripts |
 
 ---
 
@@ -77,7 +126,8 @@
 
 | Component | Technology | Role |
 |:----------|:-----------|:-----|
-| **Frontend** | Next.js 15 (App Router) | Web UI + API routes for chat/SMS/voice webhooks |
+| **Frontend** | Next.js 15 (App Router) | Web UI + API routes for chat/SMS/voice webhooks + WebRTC voice |
+| **Browser Voice** | WebRTC (RTCPeerConnection, DataChannel) | Direct browser → OpenAI Realtime connection |
 | **Frontend Hosting** | Vercel | Serves web app + all API routes |
 | **Voice Relay Server** | Fastify + @fastify/websocket + ws | Bridges Twilio Media Streams ↔ OpenAI Realtime API |
 | **Voice Hosting** | Render.com (free tier) | WebSocket-capable hosting for voice relay |
@@ -106,7 +156,7 @@
 - Responses sent back via TwiML `<Message>` (synchronous reply)
 - All exchanges logged as leads + conversations in DynamoDB
 
-### Channel 3: Voice (Real-time AI)
+### Channel 3: Phone Voice (Real-time AI via Twilio)
 - Customer calls Twilio phone number
 - Twilio hits voice webhook at `/api/twilio/voice`
 - Webhook returns TwiML with `<Connect><Stream>` pointing to voice relay server
@@ -115,6 +165,19 @@
 - AI speaks first with a greeting
 - Supports barge-in (caller can interrupt AI mid-speech)
 - Dynamic voice/prompt config fetched from frontend API (cached 5 min)
+
+### Channel 4: Browser Voice Chat (WebRTC Direct)
+- User clicks microphone button in chat widget (same UI as text chat)
+- Browser requests ephemeral token from `/api/realtime-session`
+- Direct WebRTC connection: **Browser ↔ OpenAI Realtime API** (no intermediary server)
+- Uses `RTCPeerConnection` for audio, `RTCDataChannel` for events/tool calls
+- **Server-side VAD** (voice activity detection) — OpenAI detects when user stops speaking
+- **Whisper-1** transcription of user speech appears in real-time
+- **Client-side tool execution** — function calls routed to Next.js APIs from browser
+- **Image support** — Tool responses with images (e.g., inventory searches) display inline
+- **Conversation persistence** — Seamlessly merge voice transcripts into text chat history
+- **Animated orb UI** — Visual feedback for listening/thinking/speaking states
+- **Model**: `gpt-4o-realtime-preview-2024-12-17`
 
 ---
 
@@ -149,14 +212,22 @@ project-root/
 │   │   │   ├── api/
 │   │   │   │   ├── chat/
 │   │   │   │   │   └── route.ts           # Web chat endpoint
+│   │   │   │   ├── realtime-session/
+│   │   │   │   │   └── route.ts           # WebRTC ephemeral token (Channel 4)
+│   │   │   │   ├── inventory/
+│   │   │   │   │   └── search/
+│   │   │   │   │       └── route.ts       # Inventory search tool (voice+chat)
 │   │   │   │   └── twilio/
 │   │   │   │       ├── message/
 │   │   │   │       │   └── route.ts       # SMS/MMS webhook
 │   │   │   │       └── voice/
-│   │   │   │           └── route.ts       # Voice webhook (returns TwiML)
+│   │   │   │           └── route.ts       # Phone voice webhook (returns TwiML)
 │   │   │   └── ... (pages)
 │   │   ├── components/
-│   │   │   └── ChatWidget.tsx             # Persistent chat widget
+│   │   │   ├── ChatWidget.tsx             # Persistent chat widget (text + voice modes)
+│   │   │   └── VoiceChatOverlay.tsx       # Voice mode UI (animated orb, transcripts)
+│   │   ├── hooks/
+│   │   │   └── useVoiceChat.ts            # WebRTC lifecycle + tool execution
 │   │   └── lib/
 │   │       ├── openai.ts                  # OpenAI client + helpers
 │   │       ├── twilio.ts                  # Twilio SMS client + helpers
@@ -166,8 +237,8 @@ project-root/
 │   └── .env.local                         # Environment variables
 │
 ├── backend/
-│   ├── realtime_voice/          # Voice relay server (Render.com)
-│   │   ├── server.js                      # Fastify + WebSocket relay
+│   ├── realtime_voice/          # Phone voice relay server (Render.com)
+│   │   ├── server.js                      # Fastify + WebSocket relay (Twilio↔OpenAI)
 │   │   ├── package.json                   # ⚠️ MUST have "type": "module"
 │   │   ├── Dockerfile                     # Optional (for container deploys)
 │   │   └── .env                           # OPENAI_API_KEY, PORT, FRONTEND_URL
@@ -493,6 +564,724 @@ In Twilio Console:
    - **URL**: `https://your-vercel-app.vercel.app/api/twilio/voice`
    - **Method**: POST
 
+### 5.5 Browser Voice Chat (Channel 4)
+
+This channel provides **direct browser-to-OpenAI voice chat** without requiring Twilio or a relay server. It uses the browser's native WebRTC APIs to establish a peer connection with OpenAI's Realtime API.
+
+**Key Architectural Differences from Phone Voice (Channel 3):**
+
+| Aspect | Phone Voice (Ch 3) | Browser Voice (Ch 4) |
+|:-------|:------------------|:--------------------|
+| **Infrastructure** | Browser → Twilio → Render relay → OpenAI | Browser → OpenAI (direct) |
+| **WebRTC Connection** | Twilio Media Stream format | Native RTCPeerConnection |
+| **Tool Execution** | Server-side (relay server) | Client-side (browser routes to APIs) |
+| **UI Integration** | Separate phone call | Same chat widget, voice mode toggle |
+| **Conversation Continuity** | Separate conversation log | Merges into text chat history |
+| **Image Support** | Not applicable | Images from tools display in transcripts |
+| **Cost** | Twilio per-minute charges | Only OpenAI API costs |
+| **Hosting** | Requires Render.com relay server | Zero additional hosting |
+
+#### 5.5.1 Architecture Overview
+
+```
+User clicks mic button in ChatWidget
+    │
+    ├─► Request ephemeral token from /api/realtime-session
+    │
+    ├─► Establish WebRTC connection (RTCPeerConnection)
+    │   ├─► Audio track: getUserMedia(audio: true)
+    │   └─► Data channel: "oai-events" for control messages
+    │
+    ├─► OpenAI Realtime API processes:
+    │   ├─► Server-side VAD (voice activity detection)
+    │   ├─► Whisper-1 transcription of user speech
+    │   ├─► GPT-4o-realtime generates response
+    │   └─► Function calls sent via data channel
+    │
+    ├─► Client-side tool execution:
+    │   ├─► Browser intercepts function_call events
+    │   ├─► Routes to Next.js APIs (e.g., /api/inventory/search)
+    │   ├─► Extracts images from tool responses
+    │   └─► Sends function_call_output back to OpenAI
+    │
+    └─► Real-time transcripts + images displayed in VoiceChatOverlay
+```
+
+#### 5.5.2 Ephemeral Token API Route
+
+**File**: `frontend/src/app/api/realtime-session/route.ts`
+
+This generates a session-specific ephemeral token that allows the browser to connect to OpenAI's Realtime API without exposing your API key.
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { voice = "alloy", temperature = 0.7 } = body;
+
+    // Generate ephemeral token from OpenAI
+    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-realtime-preview-2024-12-17",
+        voice,
+        temperature,
+        // System instructions
+        instructions: `You are a helpful AI assistant for USA Pawn Holdings pawn shop. 
+        You help customers with:
+        - Item appraisals (use appraise_item function)
+        - Inventory searches (use check_inventory function)
+        - Scheduling visits (use schedule_visit function)
+        - Gold/silver prices (use get_gold_spot_price function)
+        - Store hours (use check_store_status function)
+        
+        Be conversational, friendly, and professional. Keep responses concise for voice interaction.`,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Realtime Session] OpenAI error:", errorText);
+      return NextResponse.json(
+        { error: "Failed to create session" },
+        { status: response.status }
+      );
+    }
+
+    const session = await response.json();
+    // Returns: { client_secret: { value: "eph_..." }, expires_at: ... }
+    
+    return NextResponse.json({
+      clientSecret: session.client_secret.value,
+      expiresAt: session.expires_at,
+    });
+  } catch (error) {
+    console.error("[Realtime Session] Error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Key points:**
+- Token is **ephemeral** — valid for ~60 seconds, single-use
+- System instructions embedded in session config (not sent from browser)
+- Voice and temperature configurable via request body
+- Returns `clientSecret` which browser uses to authenticate WebRTC connection
+
+#### 5.5.3 useVoiceChat Hook
+
+**File**: `frontend/src/hooks/useVoiceChat.ts`
+
+This React hook manages the complete WebRTC lifecycle:
+
+**Core Responsibilities:**
+1. **Ephemeral token acquisition** — Fetch from API route
+2. **WebRTC connection** — Establish `RTCPeerConnection` with OpenAI
+3. **Audio routing** — getUserMedia → audio track → peer connection
+4. **Data channel management** — "oai-events" channel for control messages
+5. **Transcript accumulation** — User + AI messages with role, timestamp, imageUrl
+6. **Tool execution** — Client-side routing of function calls to Next.js APIs
+7. **Image extraction** — Parse tool responses, attach images to transcripts
+8. **Connection state** — Track idle/connecting/connected/error states
+
+**Key Code Segments:**
+
+```typescript
+interface VoiceTranscript {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  timestamp: number;
+  imageUrl?: string; // For tool responses with images
+}
+
+export function useVoiceChat() {
+  const [isActive, setIsActive] = useState(false);
+  const [connectionState, setConnectionState] = useState<"idle" | "connecting" | "connected" | "error">("idle");
+  const [transcripts, setTranscripts] = useState<VoiceTranscript[]>([]);
+  
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const pendingImageRef = useRef<string | null>(null);
+
+  const startVoiceChat = async () => {
+    try {
+      setConnectionState("connecting");
+
+      // Step 1: Get ephemeral token
+      const tokenResponse = await fetch("/api/realtime-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: "alloy", temperature: 0.7 }),
+      });
+      const { clientSecret } = await tokenResponse.json();
+
+      // Step 2: Get microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      // Step 3: Create peer connection
+      const pc = new RTCPeerConnection();
+      peerConnectionRef.current = pc;
+
+      // Step 4: Add audio track
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+
+      // Step 5: Create data channel for control messages
+      const dc = pc.createDataChannel("oai-events");
+      dataChannelRef.current = dc;
+
+      dc.onopen = () => {
+        console.log("[Voice] Data channel opened");
+        setConnectionState("connected");
+      };
+
+      dc.onmessage = (event) => {
+        handleDataChannelMessage(JSON.parse(event.data));
+      };
+
+      // Step 6: Handle incoming audio
+      pc.ontrack = (event) => {
+        const audioElement = new Audio();
+        audioElement.srcObject = event.streams[0];
+        audioElement.play();
+      };
+
+      // Step 7: Create offer and connect
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResponse = await fetch(
+        "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${clientSecret}`,
+            "Content-Type": "application/sdp",
+          },
+          body: offer.sdp,
+        }
+      );
+
+      const answerSdp = await sdpResponse.text();
+      await pc.setRemoteDescription({
+        type: "answer",
+        sdp: answerSdp,
+      });
+
+      setIsActive(true);
+    } catch (error) {
+      console.error("[Voice] Connection error:", error);
+      setConnectionState("error");
+      stopVoiceChat();
+    }
+  };
+
+  const handleDataChannelMessage = (message: any) => {
+    const { type } = message;
+
+    // User speech transcription
+    if (type === "conversation.item.input_audio_transcription.completed") {
+      const userText = message.transcript?.trim();
+      if (userText) {
+        setTranscripts((prev) => [
+          ...prev,
+          {
+            id: message.item_id,
+            role: "user",
+            text: userText,
+            timestamp: Date.now(),
+          },
+        ]);
+      }
+    }
+
+    // AI response transcription
+    if (type === "response.audio_transcript.done") {
+      const aiText = message.transcript?.trim();
+      if (aiText) {
+        const newTranscript: VoiceTranscript = {
+          id: message.response_id,
+          role: "assistant",
+          text: aiText,
+          timestamp: Date.now(),
+        };
+
+        // Attach pending image if available
+        if (pendingImageRef.current) {
+          console.log("[Voice] Attaching image to transcript:", pendingImageRef.current.substring(0, 50) + "...");
+          newTranscript.imageUrl = pendingImageRef.current;
+          pendingImageRef.current = null;
+        }
+
+        setTranscripts((prev) => [...prev, newTranscript]);
+      }
+    }
+
+    // Function call from AI
+    if (type === "response.function_call_arguments.done") {
+      executeToolCall(message.call_id, message.name, message.arguments);
+    }
+  };
+
+  const executeToolCall = async (callId: string, name: string, args: string) => {
+    console.log(`[Voice Tool] Executing: ${name}`, args);
+
+    try {
+      let result: any;
+
+      // Route to appropriate API
+      if (name === "check_inventory") {
+        const params = JSON.parse(args);
+        const response = await fetch("/api/inventory/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        result = await response.json();
+
+        // Extract image from root level (not nested in top_matches)
+        if (result.display_image) {
+          console.log("[Voice Tool] Image queued from check_inventory:", result.display_image.substring(0, 50) + "...");
+          pendingImageRef.current = result.display_image;
+        }
+      } else if (name === "schedule_visit") {
+        const params = JSON.parse(args);
+        const response = await fetch("/api/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        result = await response.json();
+      } else if (name === "get_gold_spot_price") {
+        const response = await fetch("/api/gold-price");
+        result = await response.json();
+      } else if (name === "check_store_status") {
+        const response = await fetch("/api/store-status");
+        result = await response.json();
+      } else {
+        result = { error: "Unknown function" };
+      }
+
+      // Send function result back to OpenAI
+      dataChannelRef.current?.send(
+        JSON.stringify({
+          type: "conversation.item.create",
+          item: {
+            type: "function_call_output",
+            call_id: callId,
+            output: JSON.stringify(result),
+          },
+        })
+      );
+
+      // Trigger response generation
+      dataChannelRef.current?.send(
+        JSON.stringify({ type: "response.create" })
+      );
+    } catch (error) {
+      console.error("[Voice Tool] Execution error:", error);
+      dataChannelRef.current?.send(
+        JSON.stringify({
+          type: "conversation.item.create",
+          item: {
+            type: "function_call_output",
+            call_id: callId,
+            output: JSON.stringify({ error: String(error) }),
+          },
+        })
+      );
+    }
+  };
+
+  const stopVoiceChat = () => {
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    dataChannelRef.current?.close();
+    peerConnectionRef.current?.close();
+    
+    audioStreamRef.current = null;
+    dataChannelRef.current = null;
+    peerConnectionRef.current = null;
+    pendingImageRef.current = null;
+    
+    setIsActive(false);
+    setConnectionState("idle");
+  };
+
+  return {
+    isActive,
+    connectionState,
+    transcripts,
+    startVoiceChat,
+    stopVoiceChat,
+  };
+}
+```
+
+**Critical implementation details:**
+- **pendingImageRef** stores image URLs from tool responses until next AI transcript arrives
+- **Image extraction** looks at root-level `display_image` field (not nested in arrays)
+- **Tool routing** is synchronous — browser waits for API response before sending to OpenAI
+- **Data channel events** use OpenAI's documented message types (see Realtime API docs)
+
+#### 5.5.4 VoiceChatOverlay Component
+
+**File**: `frontend/src/components/VoiceChatOverlay.tsx`
+
+This replaces the text chat UI when voice mode is active.
+
+**Key Features:**
+- **Animated orb** — Visual states: idle (pulsing), listening (expanding), thinking (shimmer)
+- **Real-time transcripts** — Scrollable list of user + AI messages
+- **Image display** — Shows images from tool responses inline with AI text
+- **Connection status** — "Connecting..." / "Connected" / error states
+- **End call button** — Stops voice session, returns to text mode
+
+**Key Code Segments:**
+
+```typescript
+export function VoiceChatOverlay({
+  connectionState,
+  transcripts,
+  onEndCall,
+}: {
+  connectionState: "idle" | "connecting" | "connected" | "error";
+  transcripts: VoiceTranscript[];
+  onEndCall: () => void;
+}) {
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [transcripts]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-vault-black/95 backdrop-blur-sm flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-vault-border-accent flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full ${
+            connectionState === "connected" ? "bg-vault-success animate-pulse" :
+            connectionState === "connecting" ? "bg-vault-warning animate-pulse" :
+            "bg-vault-danger"
+          }`} />
+          <span className="text-vault-text-light font-medium">
+            {connectionState === "connected" ? "Voice Chat Active" :
+             connectionState === "connecting" ? "Connecting..." : "Disconnected"}
+          </span>
+        </div>
+        <button
+          onClick={onEndCall}
+          className="px-4 py-2 bg-vault-danger hover:bg-vault-danger/80 rounded-lg text-white font-medium transition-colors"
+        >
+          End Call
+        </button>
+      </div>
+
+      {/* Animated Orb */}
+      <div className="flex-shrink-0 flex items-center justify-center py-12">
+        <div className={`relative w-32 h-32 rounded-full ${
+          connectionState === "connected" 
+            ? "bg-gradient-to-br from-vault-gold to-vault-gold-light animate-pulse"
+            : "bg-vault-surface animate-pulse"
+        }`}>
+          <div className="absolute inset-2 rounded-full bg-vault-black/30 backdrop-blur-sm flex items-center justify-center">
+            <div className="text-4xl">🎤</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Transcripts */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="max-w-3xl mx-auto space-y-4">
+          {transcripts.map((t) => (
+            <div
+              key={t.id}
+              className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                t.role === "user"
+                  ? "bg-vault-gold text-white"
+                  : "bg-vault-surface text-vault-text-light"
+              }`}>
+                {/* Image Display */}
+                {t.imageUrl && (
+                  <div className="mb-2">
+                    <img
+                      src={t.imageUrl}
+                      alt="Result"
+                      className="max-w-full h-auto max-h-48 rounded-lg border-2 border-vault-border-accent shadow-lg"
+                    />
+                  </div>
+                )}
+                
+                {/* Text */}
+                <p className="whitespace-pre-wrap">{t.text}</p>
+                
+                {/* Timestamp */}
+                <p className="text-xs opacity-60 mt-1">
+                  {new Date(t.timestamp).toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          ))}
+          <div ref={transcriptEndRef} />
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**Styling notes:**
+- Uses USA Pawn brand colors (`vault-gold`, `vault-black`, etc.)
+- Images have max-height to prevent oversized display
+- Auto-scrolls to latest message on update
+- Full-screen overlay (z-50) covers entire chat widget
+
+#### 5.5.5 ChatWidget Integration
+
+**File**: `frontend/src/components/ChatWidget.tsx`
+
+**Modifications Required:**
+
+1. **Import voice components:**
+```typescript
+import { useVoiceChat } from "@/hooks/useVoiceChat";
+import { VoiceChatOverlay } from "./VoiceChatOverlay";
+```
+
+2. **Add voice state:**
+```typescript
+const [isVoiceMode, setIsVoiceMode] = useState(false);
+const { isActive, connectionState, transcripts, startVoiceChat, stopVoiceChat } = useVoiceChat();
+```
+
+3. **Add microphone button in chat header:**
+```typescript
+<button
+  onClick={toggleVoiceMode}
+  className={`p-2 rounded-lg transition-colors ${
+    isVoiceMode
+      ? "bg-vault-gold text-white"
+      : "bg-vault-surface hover:bg-vault-surface-elevated text-vault-text-light"
+  }`}
+  title={isVoiceMode ? "Switch to Text" : "Switch to Voice"}
+>
+  {isVoiceMode ? "💬" : "🎤"}
+</button>
+```
+
+4. **Toggle function with conversation merging:**
+```typescript
+const toggleVoiceMode = async () => {
+  if (isVoiceMode) {
+    // Stop voice, merge transcripts into text messages
+    stopVoiceChat();
+    
+    // Convert voice transcripts to text messages
+    const voiceMessages = transcripts.map((t) => ({
+      id: t.id,
+      role: t.role,
+      content: t.text,
+      imageUrl: t.imageUrl, // Preserve images
+    }));
+    
+    setMessages((prev) => [...prev, ...voiceMessages]);
+    setIsVoiceMode(false);
+  } else {
+    // Start voice mode
+    setIsVoiceMode(true);
+    await startVoiceChat();
+  }
+};
+```
+
+5. **Conditional rendering:**
+```typescript
+return (
+  <div className="fixed bottom-4 right-4 z-40">
+    {isExpanded && (
+      <div className="bg-vault-black border border-vault-border-accent rounded-lg shadow-2xl w-96 h-[600px] flex flex-col">
+        {/* Render voice overlay OR text chat */}
+        {isVoiceMode ? (
+          <VoiceChatOverlay
+            connectionState={connectionState}
+            transcripts={transcripts}
+            onEndCall={toggleVoiceMode}
+          />
+        ) : (
+          <>
+            {/* Normal text chat UI */}
+            <div className="p-4 border-b">...</div>
+            <div className="flex-1 overflow-y-auto">...</div>
+            <div className="p-4 border-t">...</div>
+          </>
+        )}
+      </div>
+    )}
+    
+    {/* Toggle button */}
+    <button onClick={() => setIsExpanded(!isExpanded)}>...</button>
+  </div>
+);
+```
+
+#### 5.5.6 Tool API Route (Inventory Search Example)
+
+**File**: `frontend/src/app/api/inventory/search/route.ts`
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { scanItems } from "@/lib/dynamodb";
+
+export async function POST(req: NextRequest) {
+  try {
+    const { category, keyword } = await req.json();
+    
+    // Search DynamoDB inventory
+    const items = await scanItems("USA_Pawn_Inventory", {
+      category,
+      keyword,
+      limit: 5,
+    });
+
+    // Return top match with image at root level
+    const topMatch = items[0] || null;
+    const displayImage = topMatch?.image_url || null;
+
+    return NextResponse.json({
+      success: true,
+      count: items.length,
+      top_matches: items,
+      display_image: displayImage, // ⚠️ Root level, not nested
+      display_summary: topMatch
+        ? `Found ${items.length} ${category} items. Top result: ${topMatch.title} - $${topMatch.price}`
+        : `No ${category} items found matching "${keyword}".`,
+    });
+  } catch (error) {
+    console.error("[Inventory Search] Error:", error);
+    return NextResponse.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Critical API response format:**
+- **display_image** must be at root level (not inside `top_matches` array)
+- Return base64 data URI: `data:image/jpeg;base64,...`
+- Include `display_summary` for voice-friendly text response
+- OpenAI receives JSON string, client extracts `display_image` field
+
+#### 5.5.7 Key Differences from Phone Voice (Channel 3)
+
+| Feature | Phone Voice | Browser Voice |
+|:--------|:-----------|:--------------|
+| **Tool execution location** | Relay server (Render.com) | Client-side (browser) |
+| **Image handling** | Not supported | Full support with inline display |
+| **Transcript persistence** | Separate call log | Merges into text chat history |
+| **Infrastructure** | Requires Render.com + Twilio | Zero additional services |
+| **Cost per conversation** | Twilio + OpenAI | OpenAI only |
+| **Browser requirements** | Any phone | Modern browser with WebRTC |
+| **Authentication** | Twilio call SID | Ephemeral token per session |
+| **Conversation context** | No carryover | Seamless mode switching |
+
+#### 5.5.8 Testing Voice Chat
+
+**Local Testing:**
+
+1. Start dev server: `cd frontend && npm run dev`
+2. Open chat widget in browser
+3. Click microphone button (🎤)
+4. Grant microphone permissions when prompted
+5. Wait for "Voice Chat Active" status
+6. Speak: "Do you have any gold jewelry?"
+7. Verify:
+   - User speech appears as transcript
+   - AI responds with audio + text
+   - Image appears above AI response
+   - Console shows: `[Voice Tool] Image queued...` and `[Voice] Attaching image...`
+8. Click "End Call" — transcripts should merge into text chat
+
+**Debugging:**
+
+- **No connection**: Check browser console for ephemeral token errors
+- **No audio**: Verify getUserMedia permissions, check volume
+- **No transcripts**: Enable `input_audio_transcription` in session config
+- **No images**: Check API response structure (display_image at root, not nested)
+- **Tool calls fail**: Check browser network tab for API route errors
+
+**Production Deployment:**
+
+- WebRTC requires **HTTPS** — Vercel provides this automatically
+- No additional hosting beyond Next.js frontend
+- Ephemeral tokens expire in ~60 seconds — safe for client-side use
+- Rate limiting recommended on `/api/realtime-session` endpoint
+
+#### 5.5.9 Browser Voice Quick Reference
+
+**Complete file inventory:**
+
+| File | Purpose | Lines | Key Responsibilities |
+|:-----|:--------|:------|:--------------------|
+| `app/api/realtime-session/route.ts` | Token generation | ~50 | Ephemeral tokens, system instructions |
+| `hooks/useVoiceChat.ts` | WebRTC lifecycle | ~300 | Connection, transcripts, tool routing, image queueing |
+| `components/VoiceChatOverlay.tsx` | Voice UI | ~120 | Animated orb, transcript display, image rendering |
+| `components/ChatWidget.tsx` | Mode toggle | +50 | Voice/text switch, transcript merging |
+| `app/api/inventory/search/route.ts` | Tool endpoint | ~80 | DynamoDB search, returns `display_image` at root |
+
+**Key data flow:**
+
+```
+User clicks mic → /api/realtime-session → ephemeral token
+                 ↓
+Browser establishes WebRTC (RTCPeerConnection + DataChannel)
+                 ↓
+User speaks → Whisper-1 transcription → VoiceTranscript (user)
+                 ↓
+AI processes → function_call event → executeToolCall()
+                 ↓
+fetch(/api/inventory/search) → { display_image: "...", ... }
+                 ↓
+pendingImageRef.current = display_image
+                 ↓
+AI speaks → response.audio_transcript.done → VoiceTranscript (assistant + imageUrl)
+                 ↓
+VoiceChatOverlay renders: <img src={t.imageUrl} /> + <p>{t.text}</p>
+                 ↓
+User clicks "End Call" → transcripts.map() → merge into text messages
+```
+
+**Critical implementation details:**
+- **Image path**: Always `result.display_image` at root (not nested in arrays)
+- **Pending image**: Store in ref between tool response and AI transcript
+- **Transcript types**: `VoiceTranscript` (voice mode) vs `Message` (text mode)
+- **Mode switching**: Convert voice → text preserves `imageUrl` field
+- **WebRTC requirements**: HTTPS, modern browser, microphone permissions
+
+**Common mistakes to avoid:**
+- ❌ Looking for images in `result.top_matches[0].display_image` (wrong path)
+- ❌ Forgetting to render images in `VoiceChatOverlay` component
+- ❌ Not merging transcripts on mode switch (conversation continuity breaks)
+- ❌ Attaching image to wrong transcript (use pendingImageRef)
+- ❌ Testing without HTTPS (WebRTC requires secure context)
+
 ---
 
 ## 6. Hosting & Deployment
@@ -771,12 +1560,113 @@ if there's no `yarn.lock`, Yarn may produce different dependency trees or fail.
 
 ---
 
+### Issue 7: Browser Voice Chat — Images Not Displaying
+
+**Symptom**: Tool responses (e.g., `check_inventory`) successfully return images in API responses, but images don't appear in voice chat transcripts. Console shows no errors.
+
+**Root Cause**: Two-part issue:
+1. **Missing UI rendering** — `VoiceChatOverlay` component didn't include image display markup in transcript bubbles
+2. **Incorrect image path extraction** — `useVoiceChat` hook was accessing `result.top_matches?.[0]?.display_image` (nested in array) instead of `result.display_image` (root-level field)
+
+**Diagnostic methodology:**
+```typescript
+// Step 1: Check VoiceChatOverlay rendering
+// Found: Only text was rendered, no {t.imageUrl && ...} block
+
+// Step 2: Check API response structure
+const response = await fetch("/api/inventory/search", {...});
+const result = await response.json();
+console.log(result);
+// Returns: { success: true, display_image: "data:image/jpeg...", top_matches: [...] }
+
+// Step 3: Check useVoiceChat extraction
+if (result.top_matches?.[0]?.display_image) { ... } // ❌ Always undefined
+if (result.display_image) { ... } // ✅ Correct
+```
+
+**Solution:**
+1. Add image rendering to `VoiceChatOverlay.tsx`:
+```typescript
+{t.imageUrl && (
+  <div className="mb-2">
+    <img
+      src={t.imageUrl}
+      alt="Result"
+      className="max-w-full h-auto max-h-48 rounded-lg border-2 border-vault-border-accent"
+    />
+  </div>
+)}
+```
+
+2. Fix image extraction in `useVoiceChat.ts`:
+```typescript
+// Before (wrong):
+if (inventoryResult.top_matches?.[0]?.display_image) {
+  pendingImageRef.current = inventoryResult.top_matches[0].display_image;
+}
+
+// After (correct):
+if (inventoryResult.display_image) {
+  pendingImageRef.current = inventoryResult.display_image;
+}
+```
+
+3. Add debug logging to track image flow:
+```typescript
+console.log("[Voice Tool] Image queued:", result.display_image.substring(0, 50) + "...");
+console.log("[Voice] Attaching image to transcript:", pendingImageRef.current);
+```
+
+**Lesson**: API response structure must match client-side extraction paths exactly. When debugging data flow through async pipelines (tool call → API → image storage → transcript attachment), add logging at each stage to identify where data is lost.
+
+---
+
+### Issue 8: Browser Voice Chat — Transcripts Not Persisting Across Mode Switches
+
+**Symptom**: Voice transcripts appear during voice mode, but disappear when switching back to text chat. Conversation history is lost.
+
+**Root Cause**: `toggleVoiceMode()` function in `ChatWidget.tsx` wasn't merging voice transcripts into the text message history. The voice transcripts lived in separate state (`useVoiceChat().transcripts`) that wasn't being transferred.
+
+**Solution**: Implement transcript merging when exiting voice mode:
+```typescript
+const toggleVoiceMode = async () => {
+  if (isVoiceMode) {
+    // Exit voice mode — merge transcripts
+    stopVoiceChat();
+    
+    const voiceMessages = transcripts.map((t) => ({
+      id: t.id,
+      role: t.role,
+      content: t.text,
+      imageUrl: t.imageUrl, // ⚠️ Preserve images
+    }));
+    
+    setMessages((prev) => [...prev, ...voiceMessages]);
+    setIsVoiceMode(false);
+  } else {
+    // Enter voice mode
+    setIsVoiceMode(true);
+    await startVoiceChat();
+  }
+};
+```
+
+**Key details:**
+- Map `VoiceTranscript[]` → `Message[]` (different types, same structure)
+- Preserve `imageUrl` field so images persist in text mode
+- Append to existing messages (don't replace — maintains conversation continuity)
+- Clear voice transcripts only after successful merge (not before)
+
+**Why this matters**: Seamless mode switching creates a unified conversation experience. Users can start in text, switch to voice for quick Q&A, then return to text without losing context.
+
+---
+
 ## 8. Environment Variables Reference
 
 ### Frontend (Vercel) — `.env.local`
 
 ```bash
-# OpenAI
+# OpenAI (used for text chat, SMS/MMS, AND browser voice WebRTC)
 OPENAI_API_KEY=sk-proj-...
 
 # AWS DynamoDB
@@ -789,7 +1679,7 @@ TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 TWILIO_PHONE_NUMBER=+1XXXXXXXXXX
 
-# Voice relay server URL (Render.com)
+# Phone voice relay server URL (Render.com) — NOT needed for browser voice
 VOICE_SERVER_URL=https://your-voice-server.onrender.com
 
 # Auth
@@ -798,6 +1688,8 @@ DEMO_AUTH_PASSWORD=12345
 # App URL
 NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app
 ```
+
+**Note**: Browser voice chat (Channel 4) uses the **same OPENAI_API_KEY** as text chat. No additional environment variables required. The `/api/realtime-session` route generates ephemeral tokens from this key.
 
 ### Voice Server (Render.com) — Environment Variables
 
@@ -872,7 +1764,30 @@ const isValid = twilio.validateRequest(
 2. Click the chat widget
 3. Type a message — should get AI response
 4. Try asking about inventory, store hours, scheduling
-5. Check DynamoDB `Conversations` table for logged data
+5. Upload a photo for appraisal
+6. Check DynamoDB `Conversations` table for logged data
+
+### Test Browser Voice Chat (WebRTC)
+1. Open the chat widget
+2. Click the microphone button (🎤)
+3. Grant microphone permissions when prompted
+4. Wait for "Voice Chat Active" status (green dot)
+5. Say: "Do you have any gold jewelry?" or "Show me a 9mm handgun"
+6. Verify:
+   - Your speech appears as user transcript
+   - AI responds with both audio and text
+   - If inventory found, image appears above AI's text response
+   - Console shows: `[Voice Tool] Image queued...` and `[Voice] Attaching image...`
+7. Click "End Call" button
+8. Verify voice transcripts (including images) merge into text chat history
+
+**Common issues:**
+- **No connection**: Check browser console for ephemeral token errors, verify OPENAI_API_KEY in Vercel
+- **No audio output**: Check browser volume, verify speakers/headphones
+- **No microphone input**: Check permissions in browser (chrome://settings/content/microphone)
+- **No transcripts**: Check that `input_audio_transcription` is enabled in session config
+- **Images missing**: Verify API route returns `display_image` at root level (not nested)
+- **"Connecting..." forever**: Check network tab for 401/403 on OpenAI Realtime endpoint
 
 ### Test SMS
 ```bash
@@ -886,7 +1801,7 @@ const isValid = twilio.validateRequest(
 2. Should receive an AI appraisal response within 5-10 seconds
 3. Check DynamoDB for logged lead + conversation
 
-### Test Voice — WebSocket Handshake
+### Test Phone Voice — WebSocket Handshake
 ```javascript
 // Run from a machine with the ws package installed
 const WebSocket = require('ws');
@@ -901,13 +1816,13 @@ Expected output: `OPEN - WebSocket works!`
 
 If you get `UNEXPECTED 403` — the hosting platform doesn't support WebSocket.
 
-### Test Voice — Live Call
+### Test Phone Voice — Live Call
 1. Call your Twilio number from any phone
 2. Should hear AI greeting within 2-3 seconds
 3. Have a conversation — test barge-in (interrupt the AI)
 4. Hang up and check Render.com logs for connection/disconnection events
 
-### Test Voice — Health Check
+### Test Phone Voice — Health Check
 ```bash
 curl https://your-voice-server.onrender.com/
 # Expected: {"status":"ok","service":"your-voice-server"}
@@ -922,16 +1837,23 @@ curl https://your-voice-server.onrender.com/
 | Service | Tier | Cost | Notes |
 |:--------|:-----|:-----|:------|
 | Vercel | Hobby | $0 | 100GB bandwidth, serverless functions |
-| Render.com | Free | $0 | 750 hrs/month, 50s cold start |
-| Render.com | Starter | $7 | No cold start, always on |
-| OpenAI (Chat) | Pay-per-use | ~$5-15 | GPT-5-mini, ~1000 conversations |
-| OpenAI (Vision) | Pay-per-use | ~$2-5 | GPT-4o, ~100 photo appraisals |
-| OpenAI (Voice) | Pay-per-use | ~$10-30 | Realtime API, ~100 calls |
+| Render.com (phone voice) | Free | $0 | 750 hrs/month, 50s cold start (NOT needed for browser voice) |
+| Render.com (phone voice) | Starter | $7 | No cold start, always on (NOT needed for browser voice) |
+| OpenAI (Text Chat) | Pay-per-use | ~$5-15 | GPT-5-mini, ~1000 conversations |
+| OpenAI (Vision/MMS) | Pay-per-use | ~$2-5 | GPT-4o, ~100 photo appraisals |
+| OpenAI (Browser Voice) | Pay-per-use | ~$8-20 | Realtime API, ~100 sessions, $0.06/min input + $0.24/min output |
+| OpenAI (Phone Voice) | Pay-per-use | ~$10-30 | Realtime API + Twilio relay, ~100 calls |
 | Twilio Phone | Monthly | $1.15 | One US local number |
 | Twilio SMS | Per-message | ~$3-10 | $0.0079/msg, ~500 messages |
-| Twilio Voice | Per-minute | ~$5-15 | $0.014/min, ~500 minutes |
+| Twilio Voice | Per-minute | ~$5-15 | $0.014/min inbound, ~500 minutes |
 | AWS DynamoDB | Free tier | $0 | 25 WCU/RCU, 25GB storage |
-| **TOTAL** | | **~$26-83/mo** | Scales with usage |
+| **TOTAL (all 4 channels)** | | **~$34-103/mo** | Scales with usage |
+| **TOTAL (no phone voice)** | | **~$15-50/mo** | Browser voice only, no Twilio calls |
+
+**Cost comparison — Voice options:**
+- **Browser Voice (WebRTC)**: $0 infrastructure + OpenAI Realtime API only
+- **Phone Voice (Twilio)**: $7/mo Render + $1.15/mo number + $0.014/min + OpenAI Realtime API
+- **Savings**: Browser voice eliminates ~$20-35/mo in telephony costs
 
 ### What NOT to Use
 
@@ -947,14 +1869,23 @@ curl https://your-voice-server.onrender.com/
 
 ### To build a new Voice/SMS/Chat system for a different client:
 
+**Choose your channels:**
+- ✅ **Text Chat** (always recommended — lowest cost, highest engagement)
+- ✅ **SMS/MMS** (recommended if you want mobile reach)
+- ⚠️ **Phone Voice** (Twilio + Render relay) — adds $20-35/mo infrastructure
+- ✅ **Browser Voice** (WebRTC direct) — zero infrastructure cost, modern UX
+
+**Recommendation**: Start with **Text Chat + Browser Voice** only. Add SMS/Phone later if customer demand justifies the cost.
+
 #### Step 1: Clone the Structure
 Copy the project structure from Section 5.1. The architecture is client-agnostic.
 
 #### Step 2: Customize System Prompts
 Update these files with the new business identity:
 - `frontend/src/lib/constants.ts` → `VAULT_SYSTEM_PROMPT` (web chat)
-- `frontend/src/app/api/twilio/message/route.ts` → `SMS_CHAT_PROMPT` + `SMS_APPRAISAL_PROMPT`
-- `backend/realtime_voice/server.js` → `FALLBACK_SYSTEM_MESSAGE` (voice)
+- `frontend/src/app/api/realtime-session/route.ts` → `instructions` field (browser voice)
+- `frontend/src/app/api/twilio/message/route.ts` → `SMS_CHAT_PROMPT` + `SMS_APPRAISAL_PROMPT` (if using SMS)
+- `backend/realtime_voice/server.js` → `FALLBACK_SYSTEM_MESSAGE` (if using phone voice)
 
 Replace all instances of:
 - Business name, address, phone, hours
@@ -962,26 +1893,51 @@ Replace all instances of:
 - AI personality name (e.g., "Vault" → something else)
 
 #### Step 3: Set Up Accounts
-1. **Twilio**: Buy a phone number in the client's area code
-2. **OpenAI**: Use your existing API key (or create a project-specific one)
-3. **Vercel**: Connect the new repo
-4. **Render.com**: Create a new web service pointing to `backend/realtime_voice`
-5. **AWS DynamoDB**: Create tables (or use a different DB)
+**Required for all:**
+1. **OpenAI**: Use your existing API key (or create a project-specific one)
+2. **Vercel**: Connect the new repo
+3. **AWS DynamoDB** (or different DB): For conversation/lead tracking
 
-#### Step 4: Configure Twilio Webhooks
+**Optional (only if using SMS/Phone):**
+4. **Twilio**: Buy a phone number in the client's area code
+5. **Render.com**: Create web service pointing to `backend/realtime_voice` (only if using phone voice)
+
+#### Step 4: Configure Twilio Webhooks (if using SMS/Phone)
 - Voice: `POST https://new-app.vercel.app/api/twilio/voice`
 - Messaging: `POST https://new-app.vercel.app/api/twilio/message`
 
 #### Step 5: Set Environment Variables
-- Vercel: All frontend vars (OpenAI, Twilio, AWS, VOICE_SERVER_URL)
-- Render.com: OPENAI_API_KEY, PORT, FRONTEND_URL
+**Vercel (required):**
+```bash
+OPENAI_API_KEY=sk-proj-...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+NEXT_PUBLIC_SITE_URL=https://new-app.vercel.app
+```
+
+**Vercel (optional — if using SMS/Phone):**
+```bash
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1XXXXXXXXXX
+VOICE_SERVER_URL=https://new-voice-server.onrender.com
+```
+
+**Render.com (only if using phone voice):**
+```bash
+OPENAI_API_KEY=sk-proj-...
+PORT=5050
+VOICE=alloy
+FRONTEND_URL=https://new-app.vercel.app
+```
 
 #### Step 6: Deploy & Test
 1. Push to GitHub → Vercel auto-deploys
-2. Render.com auto-deploys (or manual deploy)
-3. Run the WebSocket handshake test
-4. Send a test SMS
-5. Place a test call
+2. Test text chat: Type in widget
+3. Test browser voice: Click mic button in widget
+4. (If using SMS) Send a test SMS
+5. (If using phone voice) Render.com auto-deploys → WebSocket handshake test → place test call
 
 #### Step 7: Customize Function Tools (Optional)
 Modify `functions.json` / `constants.ts` to add business-specific tools:

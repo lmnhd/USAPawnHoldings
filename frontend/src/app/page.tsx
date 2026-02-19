@@ -381,6 +381,8 @@ export default function HomePage() {
         description="World class customer service, quality merchandise and low prices"
       />
 
+      <div className="relative vault-texture-page">
+
       {/* Info Section After Hero */}
       <section className="relative py-8 bg-vault-black-deep -mt-14">
         <div className="max-w-5xl px-4 mx-auto text-center ">
@@ -648,6 +650,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      </div>
     </>
   );
 }

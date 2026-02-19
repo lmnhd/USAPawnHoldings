@@ -26,6 +26,7 @@ export default function StaffPage() {
   const [showItemEntry, setShowItemEntry] = useState(false);
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [availableStaff, setAvailableStaff] = useState<Array<{ name: string; pin: string }>>([]);
+  const isClockedIn = Boolean(activeShift);
 
   /* ----------------------------------------------------------------
      Data fetching
@@ -143,6 +144,14 @@ export default function StaffPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!isClockedIn) {
+      setShowPriceLookup(false);
+      setShowItemEntry(false);
+      setShowInventoryManager(false);
+    }
+  }, [isClockedIn]);
 
   /* ----------------------------------------------------------------
      Clock action handler
@@ -278,11 +287,17 @@ export default function StaffPage() {
           <h2 className="font-display text-lg font-bold text-vault-text-light mb-3">
             Quick Actions
           </h2>
+          {!isClockedIn && (
+            <p className="mb-3 text-xs font-body text-vault-text-muted">
+              Clock in to enable quick actions.
+            </p>
+          )}
           <div className="grid grid-cols-4 gap-3">
             <QuickActionCard
               icon="📦"
               label="Add Item"
               description="Log new item"
+              disabled={!isClockedIn}
               onClick={() => {
                 setShowItemEntry(true);
                 setShowInventoryManager(false);
@@ -292,6 +307,7 @@ export default function StaffPage() {
               icon="🗂️"
               label="Manage Inventory"
               description="View & delete items"
+              disabled={!isClockedIn}
               onClick={() => {
                 setShowInventoryManager(true);
                 setShowItemEntry(false);
@@ -301,6 +317,7 @@ export default function StaffPage() {
               icon="💰"
               label="Price Lookup"
               description="Check gold prices"
+              disabled={!isClockedIn}
               onClick={() => {
                 setShowPriceLookup(true);
                 setShowItemEntry(false);
@@ -311,6 +328,7 @@ export default function StaffPage() {
               icon="📋"
               label="Queue"
               description="View appointments"
+              disabled={!isClockedIn}
               onClick={() => {
                 setShowItemEntry(false);
                 setShowInventoryManager(false);
@@ -321,7 +339,7 @@ export default function StaffPage() {
         </div>
 
         {/* Price Lookup Tool */}
-        {showPriceLookup && (
+        {isClockedIn && showPriceLookup && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-lg font-bold text-vault-text-light">
@@ -341,7 +359,7 @@ export default function StaffPage() {
         )}
 
         {/* Item Entry Form */}
-        {showItemEntry && (
+        {isClockedIn && showItemEntry && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-lg font-bold text-vault-text-light">
@@ -367,7 +385,7 @@ export default function StaffPage() {
         )}
 
         {/* Inventory Manager */}
-        {showInventoryManager && (
+        {isClockedIn && showInventoryManager && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-lg font-bold text-vault-text-light">
@@ -408,9 +426,10 @@ interface QuickActionCardProps {
   description: string;
   href?: string;
   onClick?: () => void;
+  disabled?: boolean;
 }
 
-function QuickActionCard({ icon, label, description, href, onClick }: QuickActionCardProps) {
+function QuickActionCard({ icon, label, description, href, onClick, disabled = false }: QuickActionCardProps) {
   const content = (
     <>
       <span className="text-2xl mb-2 block" aria-hidden="true">{icon}</span>
@@ -419,10 +438,11 @@ function QuickActionCard({ icon, label, description, href, onClick }: QuickActio
     </>
   );
 
-  const classes =
-    "flex flex-col items-center justify-center p-4 rounded-xl border-vault-gold/10 bg-vault-surface-elevated hover:border-vault-gold/30 hover:bg-vault-gold/5 transition-all duration-200 active:scale-95 cursor-pointer min-h-[100px] h-auto";
+  const classes = disabled
+    ? "flex flex-col items-center justify-center p-4 rounded-xl border-vault-gold/10 bg-vault-surface-elevated opacity-50 cursor-not-allowed min-h-[100px] h-auto"
+    : "flex flex-col items-center justify-center p-4 rounded-xl border-vault-gold/10 bg-vault-surface-elevated hover:border-vault-gold/30 hover:bg-vault-gold/5 transition-all duration-200 active:scale-95 cursor-pointer min-h-[100px] h-auto";
 
-  if (href) {
+  if (href && !disabled) {
     return (
       <Button variant="outline" asChild className={classes}>
         <a href={href}>
@@ -433,7 +453,7 @@ function QuickActionCard({ icon, label, description, href, onClick }: QuickActio
   }
 
   return (
-    <Button variant="outline" onClick={onClick} className={classes}>
+    <Button variant="outline" onClick={onClick} className={classes} disabled={disabled}>
       {content}
     </Button>
   );

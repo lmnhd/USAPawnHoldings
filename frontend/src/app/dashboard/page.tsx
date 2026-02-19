@@ -363,7 +363,9 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-wide font-display md:text-4xl text-vault-gold">
-            <span><Image src="/logo-symbol-2.png" alt="USA Pawn Holdings Logo" width={48} height={48} className="inline-block h-12 w-auto mr-2 align-middle" /></span>USA Pawn — Owner Dashboard
+            <span>
+              {/* <Image src="/logo-symbol-2.png" alt="USA Pawn Holdings Logo" width={48} height={48} className="inline-block w-auto h-12 mr-2 align-middle" /> */}
+              </span>USA Pawn — Owner Dashboard
           </h1>
           <p className="mt-1 text-sm text-vault-text-muted font-body">
             Command Center for USA Pawn Holdings

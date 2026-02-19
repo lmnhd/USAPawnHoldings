@@ -38,11 +38,14 @@ export const BentoGridItem = ({
   icon?: React.ReactNode;
   href?: string;
 }) => {
+  const baseClassName =
+    "row-span-1 h-full rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault p-4 border border-vault-border bg-vault-surface-elevated justify-between flex flex-col space-y-4 hover:border-vault-red/40";
+
   const content = (
     <div
       className={cn(
-        "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault p-4 border border-vault-border bg-vault-surface-elevated justify-between flex flex-col space-y-4 hover:border-vault-red/40",
-        className,
+        baseClassName,
+        !href && className,
         href && "cursor-pointer"
       )}
     >
@@ -61,7 +64,7 @@ export const BentoGridItem = ({
 
   if (href) {
     return (
-      <Link href={href} className="block h-full">
+      <Link href={href} className={cn("block h-full", className)}>
         {content}
       </Link>
     );

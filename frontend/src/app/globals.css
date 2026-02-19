@@ -188,8 +188,102 @@
 }
 
 @layer utilities {
+  @keyframes hero-caret-blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .hero-typewriter-caret {
+    display: inline-block;
+    width: 1px;
+    height: 0.88em;
+    margin-left: 0.18em;
+    background-color: currentColor;
+    vertical-align: -0.08em;
+    animation: hero-caret-blink 1s steps(1, end) infinite;
+  }
+
   .text-balance {
     text-wrap: balance;
+  }
+
+  .grain-white {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .grain-white::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    mix-blend-mode: multiply;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(10, 22, 40, 0.08) 0 1px, transparent 1px),
+      radial-gradient(circle at 80% 30%, rgba(10, 22, 40, 0.06) 0 1px, transparent 1px),
+      radial-gradient(circle at 40% 70%, rgba(10, 22, 40, 0.07) 0 1px, transparent 1px),
+      radial-gradient(circle at 70% 85%, rgba(10, 22, 40, 0.05) 0 1px, transparent 1px);
+    background-size: 3px 3px, 4px 4px, 3px 3px, 5px 5px;
+  }
+
+  .light .grain-white::before {
+    opacity: 0.16;
+  }
+
+  .grain-white > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .vault-texture,
+  .vault-texture-page {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .vault-texture::before,
+  .vault-texture-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.18;
+    background-image:
+      radial-gradient(circle at 10% 12%, rgba(74, 144, 217, 0.15) 0 1px, transparent 1px),
+      radial-gradient(circle at 78% 30%, rgba(74, 144, 217, 0.12) 0 1px, transparent 1px),
+      radial-gradient(circle at 34% 82%, rgba(204, 0, 0, 0.08) 0 1px, transparent 1px),
+      repeating-linear-gradient(0deg, transparent, transparent 24px, rgba(74, 144, 217, 0.04) 24px, rgba(74, 144, 217, 0.04) 25px),
+      repeating-linear-gradient(90deg, transparent, transparent 24px, rgba(74, 144, 217, 0.04) 24px, rgba(74, 144, 217, 0.04) 25px);
+    background-size: 4px 4px, 5px 5px, 6px 6px, 120px 120px, 120px 120px;
+  }
+
+  .light .vault-texture::before,
+  .light .vault-texture-page::before {
+    opacity: 0.34;
+    background-image:
+      radial-gradient(circle at 10% 12%, rgba(27, 77, 142, 0.20) 0 1px, transparent 1px),
+      radial-gradient(circle at 78% 30%, rgba(27, 77, 142, 0.16) 0 1px, transparent 1px),
+      radial-gradient(circle at 34% 82%, rgba(184, 0, 0, 0.08) 0 1px, transparent 1px),
+      repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(27, 77, 142, 0.06) 20px, rgba(27, 77, 142, 0.06) 21px),
+      repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(27, 77, 142, 0.06) 20px, rgba(27, 77, 142, 0.06) 21px);
+  }
+
+  .vault-texture > *,
+  .vault-texture-page > * {
+    position: relative;
+    z-index: 1;
   }
   
   .gold-gradient {

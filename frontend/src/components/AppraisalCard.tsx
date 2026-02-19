@@ -152,7 +152,7 @@ export default function AppraisalCard({ result, photoPreview, photoPreviews, onR
   /* ── Success State ── */
   if (bookingSuccess) {
     return (
-      <Card className="bg-vault-surface-elevated border-vault-success/30 rounded-2xl animate-in fade-in duration-500">
+      <Card className="grain-white bg-vault-surface-elevated border-vault-success/30 rounded-2xl animate-in fade-in duration-500">
         <CardContent className="p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-vault-success/10 flex items-center justify-center">
             <svg className="w-8 h-8 text-vault-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +199,7 @@ export default function AppraisalCard({ result, photoPreview, photoPreviews, onR
 
   /* ── Result Card ── */
   return (
-    <Card className="bg-vault-surface-elevated border-vault-gold/20 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <Card className="grain-white bg-vault-surface-elevated border-vault-gold/20 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header with photo(s) */}
       <div className="flex flex-col sm:flex-row">
         {(photoPreviews && photoPreviews.length > 1) ? (

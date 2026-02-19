@@ -7,6 +7,8 @@
 How about a system for entering new items into inventory using a phone, take image and give the AI any relevant info and it catalogues and indexes the item, complete with product description, SkU, other meta - and updates the 'Products' page dynamically!
 
 
+
+
 ### Things we can also add!
  - Allow customers to create tickets online (during appraisals) for faster processing when they come in.
  - A system to help speed up staff members when researching and processing merch. Auto updated in inventory online!
@@ -19,3 +21,8 @@ How about a system for entering new items into inventory using a phone, take ima
 
 
 
+# Test basic health
+Invoke-WebRequest -Uri "https://usapawn-voice.onrender.com/" -UseBasicParsing
+
+# Test the full warm-up endpoint
+Invoke-WebRequest -Uri "https://usapawn-voice.onrender.com/health/store-status" -UseBasicParsing

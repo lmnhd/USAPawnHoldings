@@ -13,6 +13,7 @@
 - [ ] `DEMO_AUTH_PASSWORD` — Set to `12345` for demo
 - [ ] `NEXT_PUBLIC_SITE_URL` — Production URL
 - [ ] `DAILY_QR_TOKEN_SECRET` — Random 32-char string
+- [ ] `REMOVE_BG_API_KEY` — remove.bg key for staff inventory background removal (optional, paid)
 
 ### DynamoDB Tables (AWS Console)
 Verify all 6 tables exist in `us-east-1`:
@@ -90,6 +91,15 @@ Once deployed, configure Twilio webhooks:
    - URL: `https://usapawn.vercel.app/api/twilio/incoming-call`
    - Method: POST
 5. Save configuration
+
+### Background Removal Provider (Optional)
+For staff inventory image cleanup in the AI Helper:
+1. Create account: https://www.remove.bg/api
+2. Generate API key in remove.bg dashboard
+3. Add `REMOVE_BG_API_KEY` to Vercel env vars
+4. Redeploy so Next.js API routes receive the key
+
+Pricing note: remove.bg is credit-based (paid after trial credits). If key is not set, upload and AI evaluation still work; only background removal is disabled.
 
 ### QR Code Generation
 Generate daily QR codes for staff clock-in:

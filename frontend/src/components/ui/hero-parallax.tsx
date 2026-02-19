@@ -8,7 +8,31 @@ import {
   MotionValue,
 } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
+
+const GLOW_COLORS = ["red", "white", "blue"] as const;
+type GlowColor = (typeof GLOW_COLORS)[number];
+
+const GLOW_STYLES: Record<GlowColor, { shadow: string; ring: string; ringSoft: string }> = {
+  red: {
+    shadow: "0 0 22px rgba(230,0,0,0.75), 0 0 50px rgba(204,0,0,0.5), 0 10px 34px rgba(0,0,0,0.55)",
+    ring: "rgba(230,0,0,0.95)",
+    ringSoft: "rgba(204,0,0,0.55)",
+  },
+  white: {
+    shadow: "0 0 18px rgba(255,255,255,0.9), 0 0 42px rgba(220,232,255,0.55), 0 10px 34px rgba(0,0,0,0.55)",
+    ring: "rgba(255,255,255,0.98)",
+    ringSoft: "rgba(200,220,255,0.52)",
+  },
+  blue: {
+    shadow: "0 0 22px rgba(74,144,217,0.85), 0 0 50px rgba(91,160,232,0.55), 0 10px 34px rgba(0,0,0,0.55)",
+    ring: "rgba(91,160,232,0.95)",
+    ringSoft: "rgba(74,144,217,0.58)",
+  },
+};
+
+function randomGlowColor(): GlowColor {
+  return GLOW_COLORS[Math.floor(Math.random() * GLOW_COLORS.length)];
+}
 
 const ImageModal = ({ 
   isOpen, 
@@ -103,6 +127,20 @@ export const HeroParallax = ({
     useTransform(scrollYProgress, [0, 0.2], [-300, 150]),
     springConfig
   );
+  const [glowAssignments, setGlowAssignments] = React.useState<GlowColor[]>(() =>
+    products.map((_, index) => GLOW_COLORS[index % GLOW_COLORS.length])
+  );
+
+  React.useEffect(() => {
+    setGlowAssignments(products.map((_, index) => GLOW_COLORS[index % GLOW_COLORS.length]));
+
+    const intervalId = window.setInterval(() => {
+      setGlowAssignments(products.map(() => randomGlowColor()));
+    }, 5200);
+
+    return () => window.clearInterval(intervalId);
+  }, [products]);
+
   return (
     <div
       ref={ref}
@@ -139,34 +177,37 @@ export const HeroParallax = ({
         }}
         className="relative z-[2]"
       >
-        <motion.div className="flex flex-row-reverse mb-10 space-x-10 space-x-reverse md:space-x-20 md:mb-20">
+        <motion.div className="flex flex-row-reverse mb-10 space-x-5 space-x-reverse md:space-x-20? md:mb-20">
           {firstRow.map((product, idx) => (
             <div key={`first-${idx}`}>
                 <ProductCard
                   product={product}
                   translate={translateX}
+                  glowColor={glowAssignments[idx] ?? GLOW_COLORS[idx % GLOW_COLORS.length]}
                 />
-                
             </div>
           ))}
         </motion.div>
-        <motion.div className="flex flex-row mb-10 space-x-10 md:mb-20 md:space-x-20 ">
+        <motion.div className="flex flex-row mb-10 space-x-5 md:mb-20 md:space-x-20? ">
           {secondRow.map((product, idx) => (
-            <ProductCard
-              product={product}
-              translate={translateXReverse}
-              key={`second-${idx}`}
-            />
+            <div key={`second-${idx}`}>
+              <ProductCard
+                product={product}
+                translate={translateXReverse}
+                glowColor={glowAssignments[firstRow.length + idx] ?? GLOW_COLORS[(firstRow.length + idx) % GLOW_COLORS.length]}
+                key={`second-${idx}`}
+              />
+            </div>
           ))}
         </motion.div>
-        <motion.div className="flex flex-row-reverse space-x-10 space-x-reverse md:space-x-20">
+        <motion.div className="flex flex-row-reverse space-x-5 space-x-reverse md:space-x-20?">
           {thirdRow.map((product, idx) => (
             <div key={`third-${idx}`}>
                 <ProductCard
                   product={product}
                   translate={translateX}
+                  glowColor={glowAssignments[firstRow.length + secondRow.length + idx] ?? GLOW_COLORS[(firstRow.length + secondRow.length + idx) % GLOW_COLORS.length]}
                 />
-                <div></div>
             </div>
           ))}
         </motion.div>
@@ -211,7 +252,7 @@ export const Header = ({
           />
         </div>
 
-        <div className="w-full max-w-3xl px-4 py-5 mt-1 border rounded-2xl bg-white/76 dark:bg-[#0B1426]/58 border-vault-gold/35 backdrop-blur-[2px] shadow-[0_12px_36px_rgba(10,22,40,0.22)]">
+        <div className="grain-white w-full max-w-3xl px-4 py-5 mt-1 border rounded-2xl bg-white/76 dark:bg-[#0B1426]/58 border-vault-gold/35 backdrop-blur-[2px] shadow-[0_12px_36px_rgba(10,22,40,0.22)]">
           {/* Decorative lines with tagline */}
           <div className="flex items-center justify-center gap-2 mb-5">
             <span className="w-12 h-px bg-[#CC0000] shadow-sm" />
@@ -239,6 +280,7 @@ export const Header = ({
 export const ProductCard = ({
   product,
   translate,
+  glowColor,
 }: {
   product: {
     title: string;
@@ -246,31 +288,49 @@ export const ProductCard = ({
     thumbnail: string;
   };
   translate: MotionValue<number>;
+  glowColor: GlowColor;
 }) => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const glowStyle = GLOW_STYLES[glowColor];
 
   return (
     <>
       <motion.div
         style={{
           x: translate,
+          boxShadow: glowStyle.shadow,
         }}
         whileHover={{
           y: -20,
         }}
         key={product.title}
-        className="group/product h-64 md:h-96 w-[20rem] md:w-[30rem] relative flex-shrink-0 cursor-pointer rounded-lg overflow-hidden border-2 border-vault-gold/85 dark:border-white/10 shadow-[0_10px_26px_rgba(27,77,142,0.28)] dark:shadow-none mr-10 md:mr-20"
+        className="group/product h-64 md:h-96 w-[20rem] md:w-[30rem] relative flex-shrink-0 cursor-pointer rounded-lg overflow-hidden border-2 border-vault-gold/85 dark:border-white/10 mr-10 md:mr-20"
         onClick={() => setIsModalOpen(true)}
       >
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -inset-[1px] z-[1] rounded-lg"
+          style={{
+            background: `conic-gradient(from 0deg, transparent 0deg, ${glowStyle.ring} 72deg, transparent 144deg, ${glowStyle.ringSoft} 216deg, transparent 320deg)`,
+            mixBlendMode: "screen",
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-2 z-[1] rounded-xl blur-xl"
+          style={{ background: `radial-gradient(circle at center, ${glowStyle.ringSoft} 0%, transparent 72%)` }}
+        />
         <Image
           src={product.thumbnail}
           fill
           sizes="(max-width: 768px) 20rem, 30rem"
-          className="object-cover object-center"
+          className="relative z-[2] object-cover object-center"
           alt={product.title}
         />
-        <div className="absolute inset-0 w-full h-full transition-opacity bg-black rounded-lg opacity-0 pointer-events-none group-hover/product:opacity-80"></div>
-        <h2 className="absolute font-semibold text-white opacity-0 bottom-4 left-4 group-hover/product:opacity-100">
+        <div className="absolute inset-0 z-[3] w-full h-full transition-opacity bg-black rounded-lg opacity-0 pointer-events-none group-hover/product:opacity-80"></div>
+        <h2 className="absolute z-[4] font-semibold text-white opacity-0 bottom-4 left-4 group-hover/product:opacity-100">
           {product.title}
         </h2>
       </motion.div>

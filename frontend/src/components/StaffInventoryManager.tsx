@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { normalizeTagList } from '@/lib/tag-governance';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -30,6 +31,7 @@ type InventoryItem = {
   category: string;
   brand?: string;
   description?: string;
+  tags?: string[];
   price?: number;
   condition?: string;
   status: InventoryStatus;
@@ -140,6 +142,7 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
     await handleUpdate(editingItem.item_id, {
       description: editingItem.description,
       brand: editingItem.brand,
+      tags: editingItem.tags || [],
       price: editingItem.price,
       condition: editingItem.condition,
       status: editingItem.status,
@@ -306,6 +309,24 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
                       <p className="text-xs text-vault-text-muted line-clamp-2 font-body">
                         {item.description || 'No description'}
                       </p>
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {item.tags.slice(0, 3).map((tag) => (
+                            <Badge
+                              key={`${item.item_id}-${tag}`}
+                              variant="outline"
+                              className="text-[10px] border-vault-gold/30 text-vault-gold/90"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                          {item.tags.length > 3 && (
+                            <Badge variant="outline" className="text-[10px] border-vault-gold/20 text-vault-text-muted">
+                              +{item.tags.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center justify-between pt-1">
                         <span className="font-mono text-base font-bold text-vault-gold">
                           ${(item.price || 0).toLocaleString()}
@@ -327,6 +348,7 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
                           price: item.price || 0,
                           brand: item.brand || '',
                           description: item.description || '',
+                          tags: Array.isArray(item.tags) ? item.tags : [],
                           condition: item.condition || 'Used',
                         })}
                         className="flex-1 border-vault-gold/20 text-vault-gold hover:bg-vault-gold/10"
@@ -392,6 +414,27 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
                   rows={2}
                   className="bg-vault-surface border-vault-gold/15 text-vault-text-light text-sm"
                 />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="text-xs font-semibold text-vault-text-light mb-1.5 block uppercase tracking-wide">
+                  Tags
+                </label>
+                <Input
+                  value={(editingItem.tags || []).join(', ')}
+                  onChange={(e) =>
+                    setEditingItem({
+                      ...editingItem,
+                      tags: normalizeTagList(e.target.value),
+                    })
+                  }
+                  placeholder="comma-separated tags"
+                  className="bg-vault-surface border-vault-gold/15 text-vault-text-light"
+                />
+                <p className="mt-1 text-[11px] text-vault-text-muted font-body">
+                  Tags improve search relevance and AI matching.
+                </p>
               </div>
 
               {/* Price & Condition */}

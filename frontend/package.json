@@ -36,7 +36,8 @@
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "twilio": "^5.12.1"
+    "twilio": "^5.12.1",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@types/node": "^20",

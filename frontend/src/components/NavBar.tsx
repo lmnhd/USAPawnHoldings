@@ -12,8 +12,10 @@ import { Badge } from '@/components/ui/badge';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
-  { href: '/appraise', label: 'Appraise', highlight: true },
+  { href: '/?heroMode=appraisal&heroOpen=1', label: 'Appraise', highlight: true },
+  { href: '/gold', label: 'Gold', gold: true },
   { href: '/inventory', label: 'Inventory' },
+  { href: '/media', label: 'Media' },
   { href: '/info', label: 'Info' },
 ];
 
@@ -72,6 +74,10 @@ export default function NavBar() {
                     }
                     ${link.highlight && !isActive
                       ? 'bg-vault-red/10 hover:bg-vault-red/20 border border-vault-red/30 text-vault-text-light'
+                      : ''
+                    }
+                    ${'gold' in link && link.gold && !isActive
+                      ? 'bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:text-amber-300'
                       : ''
                     }
                   `}
@@ -136,6 +142,11 @@ export default function NavBar() {
                         {link.highlight && !isActive && (
                           <Badge variant="secondary" className="ml-2 text-xs text-white bg-vault-red/15">
                             AI
+                          </Badge>
+                        )}
+                        {'gold' in link && link.gold && !isActive && (
+                          <Badge variant="secondary" className="ml-2 text-xs text-amber-300 bg-amber-500/15">
+                            ★
                           </Badge>
                         )}
                       </Link>
