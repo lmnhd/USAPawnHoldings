@@ -152,7 +152,6 @@ export default function DashboardLeadFeed({
         {leads.map((lead) => {
           // Distinguish between appointments and appraisals
           const isAppointment = lead.type === 'appointment';
-          const isAppraisal = lead.source === 'appraise_page' || Boolean(lead.appraisal_id);
           const sourceKey = String(lead.source ?? 'chat').toLowerCase();
           const source = isAppointment 
             ? { icon: '📅', label: 'Appointment', bg: 'bg-vault-success/20', text: 'text-vault-success' }
@@ -161,13 +160,6 @@ export default function DashboardLeadFeed({
           const dateStr = lead.created_at ?? lead.timestamp ?? '';
           const appointmentTime = lead.scheduled_time ?? lead.appointment_time ?? lead.preferred_time;
           const method = getContactMethod(lead);
-
-          // Different border colors for appointments vs appraisals
-          const borderColor = isAppointment
-            ? 'border-vault-success/20 hover:border-vault-success/50'
-            : isAppraisal
-              ? 'border-vault-gold/20 hover:border-vault-gold/50'
-              : 'border-vault-gold/5 hover:border-vault-gold/30';
 
           const isSelected = selectedLeadId === lead.lead_id;
 

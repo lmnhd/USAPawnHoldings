@@ -619,7 +619,7 @@ export default function PitchPage() {
           <div className="p-6 mt-8 border rounded-xl border-vault-gold/40 bg-vault-gold/5">
             <h3 className="text-2xl font-display text-vault-gold">Did I forget something?</h3>
             <p className="mt-3 text-base leading-8 text-vault-text-light/90">
-              Every pawn shop has its own unique operational quirks. If there is a specific workflow, integration, or tool you need that isn't listed here, <strong>I can build it directly into this system.</strong> The goal is a single, unified platform—no more jumping between five different apps to run your store.
+              Every pawn shop has its own unique operational quirks. If there is a specific workflow, integration, or tool you need that isn&apos;t listed here, <strong>I can build it directly into this system.</strong> The goal is a single, unified platform—no more jumping between five different apps to run your store.
             </p>
           </div>
         </section>

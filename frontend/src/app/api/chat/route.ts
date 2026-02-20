@@ -960,7 +960,7 @@ export async function POST(req: NextRequest) {
               const now = new Date().toISOString();
               const confirmationConversation = createUnifiedConversationRecord({
                 conversation_id: conversationId,
-                source: mode === "appraisal" ? "appraise" : "web_chat",
+                source: "web_chat",
                 channel: "web",
                 messages: [...userMessages, { role: "assistant", content: clarificationText }] as unknown as Array<Record<string, unknown>>,
                 started_at: now,

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, FormEvent, Suspense } from 'react';
+import { useState, Suspense } from 'react';
+import type { FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+
+export const dynamic = 'force-dynamic';
 
 function LoginForm() {
   const [password, setPassword] = useState('');

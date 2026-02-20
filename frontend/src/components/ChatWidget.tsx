@@ -1102,12 +1102,12 @@ export default function ChatWidget() {
     return null;
   }
 
-  const ShellRoot = (isMobile ? Dialog : Drawer) as React.ComponentType<any>;
-  const ShellTrigger = (isMobile ? DialogTrigger : DrawerTrigger) as React.ComponentType<any>;
-  const ShellContent = (isMobile ? DialogContent : DrawerContent) as React.ComponentType<any>;
-  const ShellHeader = (isMobile ? DialogHeader : DrawerHeader) as React.ComponentType<any>;
-  const ShellTitle = (isMobile ? DialogTitle : DrawerTitle) as React.ComponentType<any>;
-  const ShellDescription = (isMobile ? DialogDescription : DrawerDescription) as React.ComponentType<any>;
+  const ShellRoot: React.ElementType = isMobile ? Dialog : Drawer;
+  const ShellTrigger: React.ElementType = isMobile ? DialogTrigger : DrawerTrigger;
+  const ShellContent: React.ElementType = isMobile ? DialogContent : DrawerContent;
+  const ShellHeader: React.ElementType = isMobile ? DialogHeader : DrawerHeader;
+  const ShellTitle: React.ElementType = isMobile ? DialogTitle : DrawerTitle;
+  const ShellDescription: React.ElementType = isMobile ? DialogDescription : DrawerDescription;
 
   const shellContentClassName = isMobile
     ? 'chat-widget-surface fixed inset-0 z-50 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-none bg-vault-surface-elevated p-0 text-vault-text-light data-[state=closed]:slide-out-to-left-0 data-[state=closed]:slide-out-to-top-[100%] data-[state=open]:slide-in-from-left-0 data-[state=open]:slide-in-from-top-[100%] [&>button]:hidden'
