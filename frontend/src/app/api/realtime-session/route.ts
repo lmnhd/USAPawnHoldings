@@ -36,7 +36,7 @@ CONVERSATION STYLE (CRITICAL):
 
 Store Info:
 - Address: 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
-- Phone: (904) 744-5611
+- Phone: (904) 650-3007
 - Hours: Mon-Fri 9 AM - 6 PM, Sat 9 AM - 5 PM, Sun Closed
 
 What You Can Do:
