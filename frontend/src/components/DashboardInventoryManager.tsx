@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,15 +52,20 @@ export default function DashboardInventoryManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedProductCard, setSelectedProductCard] = useState<ProductCardData | null>(null);
+  const searchQueryRef = useRef(searchQuery);
+
+  useEffect(() => {
+    searchQueryRef.current = searchQuery;
+  }, [searchQuery]);
 
   // Fetch inventory
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (categoryFilter !== 'all') params.set('category', categoryFilter);
-      if (searchQuery) params.set('keyword', searchQuery);
+      if (searchQueryRef.current) params.set('keyword', searchQueryRef.current);
       params.set('limit', '100');
 
       const res = await fetch(`/api/inventory?${params}`);
@@ -76,11 +81,11 @@ export default function DashboardInventoryManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, categoryFilter]);
 
   useEffect(() => {
     fetchInventory();
-  }, [statusFilter, categoryFilter]);
+  }, [fetchInventory]);
 
   // Delete item
   const handleDelete = async (itemId: string) => {
@@ -265,7 +270,7 @@ export default function DashboardInventoryManager() {
                         >
                           <Image
                             src={item.images[0]}
-                            alt={item.description}
+                            alt={item.description || item.brand || 'Inventory item'}
                             fill
                             unoptimized
                             className="w-full h-full object-cover"

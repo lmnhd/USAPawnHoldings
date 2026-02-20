@@ -262,7 +262,7 @@ export default function ChatWidget() {
     () => (opsAllowed ? (['ops'] as ChatMode[]) : (['general', 'appraisal'] as ChatMode[])),
     [opsAllowed],
   );
-  const currentMessages = messagesByMode[mode] ?? [];
+  const currentMessages = useMemo(() => messagesByMode[mode] ?? [], [messagesByMode, mode]);
   const latestAssistantMessage = useMemo(
     () => [...currentMessages].reverse().find((message) => message.role === 'assistant' && message.content.trim().length > 0),
     [currentMessages],

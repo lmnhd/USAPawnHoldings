@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -213,19 +214,25 @@ export default function AppraisalCard({ result, photoPreview, photoPreviews, onR
         {(photoPreviews && photoPreviews.length > 1) ? (
           <div className="sm:w-56 shrink-0 bg-vault-black-deep p-2 grid grid-cols-2 gap-1">
             {photoPreviews.slice(0, 4).map((src, i) => (
-              <img
+              <Image
                 key={i}
                 src={src}
                 alt={`Item photo ${i + 1}`}
+                width={224}
+                height={96}
+                unoptimized
                 className="w-full h-24 object-cover rounded"
               />
             ))}
           </div>
         ) : photoPreview && (
           <div className="sm:w-48 h-48 sm:h-auto shrink-0 bg-vault-black-deep">
-            <img
+            <Image
               src={photoPreview}
               alt="Appraised item"
+              width={768}
+              height={768}
+              unoptimized
               className="w-full h-full object-cover"
             />
           </div>

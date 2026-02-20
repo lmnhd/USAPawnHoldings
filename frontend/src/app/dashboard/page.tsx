@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { BentoGrid, BentoGridItem } from '@/components/ui/bento-grid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -196,6 +197,14 @@ function formatDateTime(value?: string): string {
    Dashboard Page
    ------------------------------------------------------------------ */
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-vault-black" />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const searchParams = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [staffLog, setStaffLog] = useState<StaffEntry[]>([]);
@@ -712,9 +721,12 @@ export default function DashboardPage() {
                 <div className="p-3 border rounded-lg bg-vault-surface border-vault-border">
                   <p className="font-mono text-xs text-vault-text-muted">Uploaded Appraisal Photo</p>
                   <div className="mt-2 overflow-hidden border rounded-lg border-vault-border bg-vault-black-deep">
-                    <img
+                    <Image
                       src={selectedLead.photo_url}
                       alt="Uploaded appraisal item"
+                      width={1200}
+                      height={800}
+                      unoptimized
                       className="object-contain w-full h-auto max-h-72"
                     />
                   </div>

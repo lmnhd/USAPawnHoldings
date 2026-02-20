@@ -256,7 +256,12 @@ function InventoryContent() {
               </div>
 
               <div className="lg:col-span-2">
-                <Select value={availability} onValueChange={(value) => setAvailability(value as (typeof AVAILABILITY_FILTERS)[number])}>
+                <Select
+                  value={availability}
+                  onValueChange={(value) =>
+                    setAvailability(value as 'all' | 'available' | 'pending' | 'sold' | 'returned')
+                  }
+                >
                   <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
                     <SelectValue placeholder="Availability" />
                   </SelectTrigger>
@@ -271,7 +276,10 @@ function InventoryContent() {
               </div>
 
               <div className="lg:col-span-2">
-                <Select value={condition} onValueChange={(value) => setCondition(value as (typeof CONDITION_FILTERS)[number])}>
+                <Select
+                  value={condition}
+                  onValueChange={(value) => setCondition(value as 'all' | 'excellent' | 'good' | 'fair' | 'poor')}
+                >
                   <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
                     <SelectValue placeholder="Condition" />
                   </SelectTrigger>
