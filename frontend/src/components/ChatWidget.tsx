@@ -158,7 +158,7 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-function buildHeroHeadline(raw: string | undefined, fallback: string, options?: { preserveFullLead?: boolean }): string {
+function buildHeroHeadline(raw: string | undefined, fallback: string, options?: { preserveFullLead?: boolean; maxChars?: number }): string {
   const source = (raw ?? '').trim();
   if (!source) return fallback;
 
@@ -173,7 +173,14 @@ function buildHeroHeadline(raw: string | undefined, fallback: string, options?: 
   if (!cleaned) return fallback;
 
   const lead = options?.preserveFullLead ? cleaned : cleaned.split(/(?<=[.!?])\s+/)[0]?.trim() || cleaned;
-  return lead || fallback;
+  if (!lead) return fallback;
+
+  const maxChars = Number(options?.maxChars ?? 0);
+  if (!maxChars || lead.length <= maxChars) return lead;
+
+  const clipped = lead.slice(0, maxChars).trimEnd();
+  const safeCut = Math.max(clipped.lastIndexOf('.'), clipped.lastIndexOf('?'), clipped.lastIndexOf('!'), clipped.lastIndexOf(','));
+  return `${(safeCut >= 60 ? clipped.slice(0, safeCut + 1) : clipped).trimEnd()}…`;
 }
 
 function extractInventoryHighlights(raw: string | undefined): string[] {
@@ -856,8 +863,11 @@ export default function ChatWidget() {
     return latestVoiceText;
   }, [voiceMode, latestVoiceAssistant?.text, latestAssistantMessage?.content]);
   const heroStatement = useMemo(
-    () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, { preserveFullLead: true }),
-    [rawHeroStatement, voiceLoadingText],
+    () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, {
+      preserveFullLead: voiceMode,
+      maxChars: voiceMode ? 280 : 190,
+    }),
+    [rawHeroStatement, voiceLoadingText, voiceMode],
   );
   const heroMessageKey = useMemo(
     () => (voiceMode
@@ -988,9 +998,9 @@ export default function ChatWidget() {
   const heroLength = visibleHeroStatement.length;
   const heroScale = useMemo(() => {
     const maxSizeRem = 4.8;
-    const minSizeRem = 1.4;
-    const shrinkStart = 75;
-    const shrinkRange = 260;
+    const minSizeRem = 1.1;
+    const shrinkStart = 42;
+    const shrinkRange = 210;
     const ratio = Math.min(1, Math.max(0, (heroLength - shrinkStart) / shrinkRange));
     const sizeRem = maxSizeRem - (maxSizeRem - minSizeRem) * ratio;
     const lineHeight = 1.08 + 0.14 * ratio;

@@ -180,6 +180,25 @@ function formatInventoryResponse(result: InventoryToolResult): string {
   return `I found ${count} ${noun}. Top match: ${preview}. Want details or something similar?`;
 }
 
+function enforceGeneralResponseStyle(rawText: string): string {
+  const normalized = String(rawText ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "How can I help today?";
+
+  const isTransactional = /\b(appointment confirmed|confirmation code|couldn't finalize|sms failed|error|issue|retry)\b/i.test(normalized);
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const concise = (sentences.length > 0 ? sentences.slice(0, 2).join(" ") : normalized).trim();
+  if (isTransactional) return concise;
+
+  const hasQuestion = /\?/.test(concise);
+  if (hasQuestion) return concise;
+
+  return `${concise}${/[.!?]$/.test(concise) ? "" : "."} Want me to check inventory, hours, or schedule a visit?`;
+}
+
 function clampInventoryIndex(index: number, total: number): number {
   if (total <= 0) return 0;
   return Math.max(0, Math.min(index, total - 1));
@@ -770,12 +789,16 @@ export async function POST(req: NextRequest) {
 
     // Append response length guidance
     const responseLength = agentConfig["agent_chat_max_response_length"];
-    if (responseLength && responseLength !== "short") {
+    if (mode !== "general" && responseLength && responseLength !== "short") {
       const lengthMap: Record<string, string> = {
         medium: "\n\nRESPONSE LENGTH: Provide 2-4 sentence responses. Give helpful detail without over-explaining.",
         long: "\n\nRESPONSE LENGTH: Provide detailed, thorough responses when the topic warrants it.",
       };
       systemPrompt += lengthMap[responseLength] ?? "";
+    }
+
+    if (mode === "general") {
+      systemPrompt += "\n\nGENERAL CHAT HARD RULES:\n- Keep replies to 1-2 short sentences\n- Move the conversation forward with one brief leading question\n- Do not send long paragraphs unless user explicitly asks for deep detail";
     }
 
     // Append escalation threshold override
@@ -977,6 +1000,10 @@ export async function POST(req: NextRequest) {
           finalText ??
           "Thanks for reaching out to USA Pawn Holdings. How can I help next?";
       }
+
+      if (mode === "general") {
+        finalText = enforceGeneralResponseStyle(finalText);
+      }
       
       console.log(`   Final response: "${finalText?.substring(0, 150)}${finalText && finalText.length > 150 ? '...' : ''}"`);
       
@@ -984,6 +1011,9 @@ export async function POST(req: NextRequest) {
       if (inventoryImageUrl) {
         if (inventoryImageText) {
           finalText = inventoryImageText;
+        }
+        if (mode === "general") {
+          finalText = enforceGeneralResponseStyle(finalText);
         }
         console.log(`   ✓ Inventory image attached: ${inventoryImageUrl}`);
         const responseWithImage = JSON.stringify({
