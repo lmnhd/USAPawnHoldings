@@ -608,7 +608,7 @@ export default function ChatWidget() {
       } catch {
         appendAssistant(
           mode,
-          "I hit a temporary issue. Please retry in a moment, or call us at (904) 650-3007.",
+          "I hit a temporary issue. Please retry in a moment, or call us at (904) 871-8226.",
         );
       } finally {
         setIsStreaming(false);
@@ -789,7 +789,7 @@ export default function ChatWidget() {
             };
             const confirmationText = result.sms_sent
               ? `Appointment confirmed for ${result.scheduled_time ?? preferredTime}. Confirmation code: ${result.confirmation_code ?? 'N/A'}. We sent your SMS details now.`
-              : `Appointment confirmed for ${result.scheduled_time ?? preferredTime}. Confirmation code: ${result.confirmation_code ?? 'N/A'}. SMS may be delayed, so call (904) 650-3007 if needed.`;
+              : `Appointment confirmed for ${result.scheduled_time ?? preferredTime}. Confirmation code: ${result.confirmation_code ?? 'N/A'}. SMS may be delayed, so call (904) 871-8226 if needed.`;
             appendAssistant(mode, confirmationText);
           } else if (response.status === 409) {
             const conflict = await response.json() as { suggest_next?: string };
@@ -798,10 +798,10 @@ export default function ChatWidget() {
               : 'Please choose another listed slot.';
             appendAssistant(mode, `That time slot is full. ${suggested}`);
           } else {
-            appendAssistant(mode, 'I couldn’t finalize your appointment yet. Please retry or call (904) 650-3007 and we’ll book it manually.');
+            appendAssistant(mode, 'I couldn’t finalize your appointment yet. Please retry or call (904) 871-8226 and we’ll book it manually.');
           }
         } catch {
-          appendAssistant(mode, 'I hit a temporary scheduling issue. Please retry in a moment, or call (904) 650-3007.');
+          appendAssistant(mode, 'I hit a temporary scheduling issue. Please retry in a moment, or call (904) 871-8226.');
         }
         return;
       }

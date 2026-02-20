@@ -63,8 +63,8 @@ interface RoiRow {
 const businessName = 'USA Pawn Holdings'
 const reportDate = 'February 2026'
 const systemName = 'The Vault'
-const demoPhoneDisplay = '(904) 650-3007'
-const demoPhoneHref = 'tel:+19046503007'
+const demoPhoneDisplay = '(904) 871-8226'
+const demoPhoneHref = 'tel:+19048718226'
 
 const gaps: Gap[] = [
   {

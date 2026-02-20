@@ -152,7 +152,7 @@ function formatInventoryResponse(result: InventoryToolResult): string {
   const topMatches = Array.isArray(result.top_matches) ? result.top_matches : [];
 
   if (count <= 0 || topMatches.length === 0) {
-    return "I couldn't find a match in current inventory. Call (904) 650-3007 or visit 6132 Merrill Rd and we’ll check live floor stock for you.";
+    return "I couldn't find a match in current inventory. Call (904) 871-8226 or visit 6132 Merrill Rd and we’ll check live floor stock for you.";
   }
 
   const preview = topMatches
@@ -839,8 +839,8 @@ export async function POST(req: NextRequest) {
       const finalText = scheduleResult.scheduled
         ? smsSuccess
           ? `Appointment confirmed for ${schedulePayload.preferred_time}. Confirmation code: ${scheduleResult.confirmation_code}. We sent your SMS details now.`
-          : `Appointment confirmed for ${schedulePayload.preferred_time}. Confirmation code: ${scheduleResult.confirmation_code}. SMS failed to send, so please call (904) 650-3007 if you need updates.`
-        : "I couldn't finalize your appointment yet. Please retry or call (904) 650-3007 and we’ll book it manually.";
+          : `Appointment confirmed for ${schedulePayload.preferred_time}. Confirmation code: ${scheduleResult.confirmation_code}. SMS failed to send, so please call (904) 871-8226 if you need updates.`
+        : "I couldn't finalize your appointment yet. Please retry or call (904) 871-8226 and we’ll book it manually.";
 
       const now = new Date().toISOString();
       const unifiedConversation = createUnifiedConversationRecord({

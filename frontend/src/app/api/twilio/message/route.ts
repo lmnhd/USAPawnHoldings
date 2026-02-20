@@ -35,7 +35,7 @@ You answer customer texts concisely and helpfully.
 
 STORE INFO:
 - Address: 6132 Merrill Rd Ste 1, Jacksonville, FL 32277
-- Phone: (904) 650-3007
+- Phone: (904) 871-8226
 - Hours: Mon–Fri 9 AM – 6 PM, Sat 9 AM – 5 PM, Sun Closed
 - Pawn terms: 25% interest, 30-day term
 
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
 
     const twiml = new twilio.twiml.MessagingResponse();
     twiml.message(
-      "We hit a snag processing your message. Try again in a moment, or call us at (904) 650-3007!"
+      "We hit a snag processing your message. Try again in a moment, or call us at (904) 871-8226!"
     );
 
     return new NextResponse(twiml.toString(), {
