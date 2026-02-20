@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Filter } from 'lucide-react';
 
 /* ── Constants ── */
 
@@ -49,6 +50,7 @@ function InventoryContent() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
+  const [showFilters, setShowFilters] = useState(false);
 
   /* Initialize category from URL params on mount */
   useEffect(() => {
@@ -244,7 +246,8 @@ function InventoryContent() {
             })}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-vault-gold/15 bg-vault-surface-elevated/95 p-3 sm:p-4 shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
+          {/* Desktop filters */}
+          <div className="hidden sm:block mt-4 rounded-2xl border border-vault-gold/15 bg-vault-surface-elevated/95 p-3 sm:p-4 shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3">
               <div className="lg:col-span-4">
                 <Input
@@ -334,6 +337,132 @@ function InventoryContent() {
               </div>
             </div>
           </div>
+
+          {/* Mobile filter toggle */}
+          <div className="sm:hidden mt-4 flex gap-2">
+            <Button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex-1 h-12 rounded-xl gold-gradient text-vault-text-on-gold font-semibold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-vault-gold/20 transition-all"
+            >
+              <Filter className="w-4 h-4" />
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+          </div>
+
+          {/* Mobile filters (collapsible) */}
+          {showFilters && (
+            <div className="sm:hidden mt-4 rounded-2xl border border-vault-gold/15 bg-vault-surface-elevated/95 p-4 shadow-[0_10px_24px_rgba(0,0,0,0.28)] animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-vault-text-muted uppercase tracking-wider font-semibold mb-2 block">
+                    Search
+                  </label>
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Keyword, brand, model..."
+                    className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-vault-text-muted uppercase tracking-wider font-semibold mb-2 block">
+                    Availability
+                  </label>
+                  <Select
+                    value={availability}
+                    onValueChange={(value) =>
+                      setAvailability(value as 'all' | 'available' | 'pending' | 'sold' | 'returned')
+                    }
+                  >
+                    <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
+                      <SelectValue placeholder="Availability" />
+                    </SelectTrigger>
+                    <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="sold">Sold</SelectItem>
+                      <SelectItem value="returned">Returned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-vault-text-muted uppercase tracking-wider font-semibold mb-2 block">
+                    Condition
+                  </label>
+                  <Select
+                    value={condition}
+                    onValueChange={(value) => setCondition(value as 'all' | 'excellent' | 'good' | 'fair' | 'poor')}
+                  >
+                    <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
+                      <SelectValue placeholder="Condition" />
+                    </SelectTrigger>
+                    <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                      <SelectItem value="all">All Condition</SelectItem>
+                      <SelectItem value="excellent">Excellent</SelectItem>
+                      <SelectItem value="good">Good</SelectItem>
+                      <SelectItem value="fair">Fair</SelectItem>
+                      <SelectItem value="poor">Poor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-vault-text-muted uppercase tracking-wider font-semibold mb-2 block">
+                    Price Range
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={minPrice}
+                      onChange={(event) => setMinPrice(event.target.value)}
+                      placeholder="Min $"
+                      className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted text-sm"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={maxPrice}
+                      onChange={(event) => setMaxPrice(event.target.value)}
+                      placeholder="Max $"
+                      className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-vault-text-muted uppercase tracking-wider font-semibold mb-2 block">
+                    Sort
+                  </label>
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'newest' | 'price-low' | 'price-high')}>
+                    <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light w-full">
+                      <SelectValue placeholder="Sort" />
+                    </SelectTrigger>
+                    <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                      <SelectItem value="newest">Newest</SelectItem>
+                      <SelectItem value="price-low">Price: Low to High</SelectItem>
+                      <SelectItem value="price-high">Price: High to Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    clearFilters();
+                    setShowFilters(false);
+                  }}
+                  className="w-full h-11 border-vault-gold/20 text-vault-text-muted hover:text-vault-text-light hover:border-vault-gold/40"
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

@@ -384,7 +384,7 @@ export default function ChatWidget() {
         {
           id: Date.now(),
           role: 'assistant',
-          content: 'Step 1 of 4 — Choose your item category to begin.',
+          content: 'Step 1 of 4 — Choose your item category to begin your guided appraisal.',
         },
       ],
     }));
@@ -675,13 +675,13 @@ export default function ChatWidget() {
       setAppraisal((prev) => ({ ...prev, step: nextStep, lastError: '' }));
 
       if (nextStep === 2) {
-        appendAssistant('appraisal', 'Great. Step 2 of 4 — add a short description (brand, condition, model, age, or markings).');
+        appendAssistant('appraisal', 'Great, please provide a description of your item including brand, condition, model, age, and any markings (Step 2 of 4).');
       }
       if (nextStep === 3) {
-        appendAssistant('appraisal', 'Perfect. Step 3 of 4 — upload clear photos. Front and detail shots work best.');
+        appendAssistant('appraisal', 'Perfect, now upload clear photos of your item with front and close-up detail shots for Step 3 of 4.');
       }
       if (nextStep === 4) {
-        appendAssistant('appraisal', 'Excellent. Step 4 of 4 — review and submit when ready.');
+        appendAssistant('appraisal', 'Excellent, review your details and submit when ready for Step 4 of 4.');
       }
     },
     [appendAssistant],
@@ -694,7 +694,7 @@ export default function ChatWidget() {
     }
 
     setAppraisal((prev) => ({ ...prev, submitting: true, lastError: '' }));
-    appendAssistant('appraisal', 'Analyzing your item now. This usually takes a few seconds.');
+    appendAssistant('appraisal', 'Analyzing your item now — this usually takes a few seconds.');
 
     try {
       const response = await fetch('/api/appraise', {
@@ -739,7 +739,7 @@ export default function ChatWidget() {
         },
       }));
 
-      appendAssistant('appraisal', 'Appraisal complete. Your result card is ready below.');
+      appendAssistant('appraisal', 'Appraisal complete — your full Appraisal Result Card is ready below.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to complete appraisal right now.';
       setAppraisal((prev) => ({ ...prev, submitting: false, lastError: message }));
@@ -864,10 +864,10 @@ export default function ChatWidget() {
   }, [voiceMode, latestVoiceAssistant?.text, latestAssistantMessage?.content]);
   const heroStatement = useMemo(
     () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, {
-      preserveFullLead: voiceMode,
-      maxChars: voiceMode ? 280 : 190,
+      preserveFullLead: voiceMode || mode === 'appraisal',
+      maxChars: voiceMode ? 280 : mode === 'appraisal' ? 260 : 190,
     }),
-    [rawHeroStatement, voiceLoadingText, voiceMode],
+    [rawHeroStatement, voiceLoadingText, voiceMode, mode],
   );
   const heroMessageKey = useMemo(
     () => (voiceMode
