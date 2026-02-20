@@ -12,6 +12,7 @@ type AppraiseRequestBody = {
   photoLabels?: string[];
   description?: string;
   category: string;
+  transaction_type?: 'pawn' | 'sell';
 };
 
 function extractNumber(text: string, pattern: RegExp): number | null {
@@ -92,6 +93,7 @@ async function fetchGoldPrices(baseUrl: string) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as AppraiseRequestBody;
+    const transactionType = body.transaction_type || 'pawn';
 
     // Support both single photo (legacy) and multi-photo
     const photoUrls: string[] = body.photoUrls ?? (body.photoUrl ? [body.photoUrl] : []);
@@ -128,7 +130,13 @@ Identify: item type, brand/model, condition, approximate weight (if jewelry/prec
     if (customPrompt && customPrompt.trim().length > 0) {
       appraisalSystemMessage = customPrompt;
     } else {
-      appraisalSystemMessage = `You are an expert appraiser for USA Pawn Holdings. Analyze items from photos for pawn shop appraisal. Be specific and thorough. When uncertain, state your confidence level. Always consider current market conditions and resale potential.`;
+      appraisalSystemMessage = `You are an expert appraiser for USA Pawn Holdings analyzing an item for ${transactionType === 'sell' ? 'SALE' : 'PAWN'}. 
+
+For SALE: Estimate retail/market resale value. This is what a customer would get outright in cash. Consider buyer appeal and market demand. Use higher estimates based on comparable sales.
+
+For PAWN: Estimate conservative collateral value. This is a short-term loan against the item. Prioritize safety and recovery value. Be conservative; customer gets item back if they repay.
+
+Be specific and thorough. When uncertain, state your confidence level. Always consider current market conditions.`;
     }
 
     // Append conservatism guidance

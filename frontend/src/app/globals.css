@@ -322,4 +322,256 @@
   .theme-transition {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
+
+  /* ═══════════════════════════════════════════════════
+     DASHBOARD COCKPIT STYLING
+     Textures, gradients, shadows, and borders for depth
+     ═══════════════════════════════════════════════════ */
+
+  /* Dashboard card with layered background and borders */
+  .dashboard-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      135deg,
+      rgba(28, 45, 71, 0.9) 0%,
+      rgba(20, 34, 56, 0.85) 50%,
+      rgba(11, 20, 38, 0.95) 100%
+    );
+    border: 1px solid rgba(74, 144, 217, 0.15);
+    box-shadow:
+      0 0 1px rgba(74, 144, 217, 0.3) inset,
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      0 8px 24px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .dashboard-card:hover {
+    border-color: rgba(74, 144, 217, 0.35);
+    box-shadow:
+      0 0 2px rgba(74, 144, 217, 0.4) inset,
+      0 4px 12px rgba(0, 0, 0, 0.4),
+      0 12px 32px rgba(74, 144, 217, 0.15);
+  }
+
+  .dashboard-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 0% 0%, rgba(74, 144, 217, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(204, 0, 0, 0.04) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .dashboard-card > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Alternative card for secondary sections */
+  .dashboard-card-secondary {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      120deg,
+      rgba(20, 34, 56, 0.7) 0%,
+      rgba(28, 45, 71, 0.65) 100%
+    );
+    border: 1px solid rgba(204, 0, 0, 0.12);
+    border-left: 2px solid rgba(74, 144, 217, 0.25);
+    border-right: 2px solid rgba(204, 0, 0, 0.25);
+    box-shadow:
+      inset 0 1px 0 rgba(74, 144, 217, 0.2),
+      inset 0 -1px 0 rgba(204, 0, 0, 0.1),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+    transition: all 0.3s ease;
+  }
+
+  .dashboard-card-secondary:hover {
+    border-color: rgba(74, 144, 217, 0.25);
+    box-shadow:
+      inset 0 1px 0 rgba(74, 144, 217, 0.3),
+      inset 0 -1px 0 rgba(204, 0, 0, 0.15),
+      0 6px 24px rgba(74, 144, 217, 0.12);
+  }
+
+  .dashboard-card-secondary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 1px,
+      rgba(74, 144, 217, 0.03) 1px,
+      rgba(74, 144, 217, 0.03) 2px
+    );
+    pointer-events: none;
+  }
+
+  .dashboard-card-secondary > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Enhanced divider/separator for dashboard sections */
+  .dashboard-divider {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(74, 144, 217, 0.15) 20%,
+      rgba(74, 144, 217, 0.25) 50%,
+      rgba(74, 144, 217, 0.15) 80%,
+      transparent 100%
+    );
+    box-shadow: 0 1px 3px rgba(74, 144, 217, 0.08);
+    margin: 1.5rem 0;
+  }
+
+  /* Glow effect for active border */
+  .dashboard-border-active {
+    position: relative;
+    border: 1px solid rgba(74, 144, 217, 0.3);
+    box-shadow: 0 0 12px rgba(74, 144, 217, 0.15);
+  }
+
+  /* Text block with background and border for dashboard items */
+  .dashboard-section-header {
+    position: relative;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(
+      90deg,
+      rgba(11, 20, 38, 0.5) 0%,
+      rgba(20, 34, 56, 0.4) 100%
+    );
+    border-bottom: 1px solid rgba(74, 144, 217, 0.15);
+    border-left: 3px solid rgba(74, 144, 217, 0.4);
+    margin-bottom: 1rem;
+  }
+
+  .dashboard-lead-item {
+    position: relative;
+    padding: 0;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(
+      135deg,
+      rgba(20, 34, 56, 0.4) 0%,
+      rgba(28, 45, 71, 0.3) 100%
+    );
+    border: 1px solid rgba(74, 144, 217, 0.12);
+    border-left: 2px solid rgba(74, 144, 217, 0.25);
+    border-radius: 0.5rem;
+    transition: all 0.25s ease;
+  }
+
+  .dashboard-lead-item:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(28, 45, 71, 0.5) 0%,
+      rgba(28, 45, 71, 0.4) 100%
+    );
+    border-color: rgba(74, 144, 217, 0.25);
+    border-left-color: rgba(74, 144, 217, 0.4);
+    box-shadow: 0 4px 12px rgba(74, 144, 217, 0.12);
+    transform: translateX(2px);
+  }
+
+  .dashboard-lead-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(74, 144, 217, 0.6) 0%, transparent 100%);
+    border-radius: 2px;
+  }
+
+  /* Metric card styling */
+  .dashboard-metric {
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(circle at 30% 30%, rgba(74, 144, 217, 0.1) 0%, transparent 40%),
+                linear-gradient(135deg, rgba(28, 45, 71, 0.6) 0%, rgba(11, 20, 38, 0.8) 100%);
+    border: 1px solid rgba(74, 144, 217, 0.2);
+    box-shadow:
+      inset 0 1px 3px rgba(74, 144, 217, 0.15),
+      0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .dashboard-metric::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      45deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.02) 50%,
+      transparent 70%
+    );
+    pointer-events: none;
+  }
+
+  /* Tab styling for dashboard */
+  .dashboard-tab-active {
+    position: relative;
+    background: linear-gradient(180deg, rgba(74, 144, 217, 0.15) 0%, rgba(74, 144, 217, 0.08) 100%);
+    border: 1px solid rgba(74, 144, 217, 0.3);
+    box-shadow: inset 0 1px 2px rgba(74, 144, 217, 0.2),
+                0 0 8px rgba(74, 144, 217, 0.1);
+  }
+
+  /* Light mode enhancements */
+  .light .dashboard-card {
+    background: linear-gradient(
+      135deg,
+      rgba(220, 232, 248, 0.8) 0%,
+      rgba(210, 225, 244, 0.75) 100%
+    );
+    border-color: rgba(27, 77, 142, 0.2);
+    box-shadow:
+      0 0 1px rgba(27, 77, 142, 0.2) inset,
+      0 2px 8px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .light .dashboard-card:hover {
+    border-color: rgba(27, 77, 142, 0.35);
+    box-shadow:
+      0 0 2px rgba(27, 77, 142, 0.3) inset,
+      0 4px 12px rgba(0, 0, 0, 0.12),
+      0 12px 32px rgba(27, 77, 142, 0.15);
+  }
+
+  .light .dashboard-lead-item {
+    background: linear-gradient(
+      135deg,
+      rgba(236, 244, 255, 0.6) 0%,
+      rgba(220, 232, 248, 0.5) 100%
+    );
+    border-color: rgba(27, 77, 142, 0.15);
+  }
+
+  .light .dashboard-lead-item:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(210, 225, 244, 0.7) 0%,
+      rgba(220, 232, 248, 0.6) 100%
+    );
+    border-color: rgba(27, 77, 142, 0.25);
+  }
+
+  .light .dashboard-divider {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(27, 77, 142, 0.15) 20%,
+      rgba(27, 77, 142, 0.25) 50%,
+      rgba(27, 77, 142, 0.15) 80%,
+      transparent 100%
+    );
+  }
 }

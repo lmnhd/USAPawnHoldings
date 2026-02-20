@@ -133,7 +133,7 @@ const gaps: Gap[] = [
     solution:
       'Use the Operational AI chat helper as an in-shift copilot for staff and management so routine decisions, lookups, and workflow guidance happen immediately in one consistent interface.',
     ctas: [
-      { label: 'Open Staff Ops View', href: '/staff?heroMode=ops&heroOpen=1', icon: 'people', variant: 'secondary' },
+      { label: 'Open Staff Portal (PIN: 1234)', href: '/staff', icon: 'people', variant: 'secondary' },
       { label: 'Open Manager Ops View', href: '/dashboard?heroMode=ops&heroOpen=1', icon: 'dashboard', variant: 'secondary' },
     ],
   },
@@ -577,12 +577,15 @@ export default function PitchPage() {
                 </div>
                 
                 <div className="pt-6 border-t border-vault-border/50">
-                  <p className="mb-2 text-xs font-semibold tracking-widest uppercase text-vault-gold">Exclusive Pilot Offer</p>
+                  <p className="mb-2 text-xs font-semibold tracking-widest uppercase text-vault-gold">Core Plan</p>
                   <p className="text-4xl font-display text-vault-text-light drop-shadow-md md:text-5xl">
-                    You tell <span className="italic text-vault-gold">me</span> pricing.
+                    $148<span className="text-2xl text-vault-text-muted">/mo</span>
+                  </p>
+                  <p className="mt-2 text-xl font-display text-vault-gold">
+                    + $299 <span className="text-base text-vault-text-muted">One-time Setup & Ingestion Fee</span>
                   </p>
                   <p className="mt-4 text-sm leading-relaxed text-vault-text-muted">
-                    I want this in my portfolio. You decide what the value is to your business after you see it work. No contracts, no hidden fees.
+                    Includes full AI voice and text routing, inventory ingestion, and the owner dashboard. No long-term contracts, cancel anytime.
                   </p>
                 </div>
               </div>
@@ -611,6 +614,13 @@ export default function PitchPage() {
                 <li key={item}>• {item}</li>
               ))}
             </ul>
+          </div>
+
+          <div className="p-6 mt-8 border rounded-xl border-vault-gold/40 bg-vault-gold/5">
+            <h3 className="text-2xl font-display text-vault-gold">Did I forget something?</h3>
+            <p className="mt-3 text-base leading-8 text-vault-text-light/90">
+              Every pawn shop has its own unique operational quirks. If there is a specific workflow, integration, or tool you need that isn't listed here, <strong>I can build it directly into this system.</strong> The goal is a single, unified platform—no more jumping between five different apps to run your store.
+            </p>
           </div>
         </section>
 

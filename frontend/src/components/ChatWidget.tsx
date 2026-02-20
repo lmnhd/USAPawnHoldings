@@ -18,8 +18,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -225,6 +232,7 @@ export default function ChatWidget() {
   const shouldHide = pathname === '/pitch';
 
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [mode, setMode] = useState<ChatMode>('general');
   const [messagesByMode, setMessagesByMode] = useState<ModeStore>({
     general: [WELCOME_MESSAGES.general],
@@ -282,15 +290,20 @@ export default function ChatWidget() {
     () => [...voice.transcripts].reverse().find((entry) => entry.role === 'assistant' && entry.text.trim().length > 0),
     [voice.transcripts],
   );
-  const latestVisualMessage = useMemo(() => {
-    return [...currentMessages].reverse().find((message) => Boolean(message.imageUrl)) ?? null;
-  }, [currentMessages]);
+  const latestTimelineMessage = useMemo(
+    () => (currentMessages.length > 0 ? currentMessages[currentMessages.length - 1] : null),
+    [currentMessages],
+  );
+  const latestVoiceMessage = useMemo(
+    () => (voice.transcripts.length > 0 ? voice.transcripts[voice.transcripts.length - 1] : null),
+    [voice.transcripts],
+  );
   const latestVisualImageUrl = useMemo(() => {
     if (voiceMode) {
-      return [...voice.transcripts].reverse().find((entry) => Boolean(entry.imageUrl))?.imageUrl ?? null;
+      return latestVoiceMessage?.imageUrl ?? null;
     }
-    return latestVisualMessage?.imageUrl ?? null;
-  }, [voiceMode, voice.transcripts, latestVisualMessage]);
+    return latestTimelineMessage?.imageUrl ?? null;
+  }, [voiceMode, latestVoiceMessage, latestTimelineMessage]);
   const isAppraisalResultView = mode === 'appraisal' && appraisal.step === 5;
 
   const findInventoryItemByImage = useCallback(async (imageUrl: string): Promise<ProductCardData | null> => {
@@ -314,8 +327,8 @@ export default function ChatWidget() {
 
     setProductCardError('');
 
-    if (latestVisualMessage?.productItem) {
-      setSelectedProductCard(latestVisualMessage.productItem);
+    if (latestTimelineMessage?.productItem) {
+      setSelectedProductCard(latestTimelineMessage.productItem);
       return;
     }
 
@@ -332,7 +345,7 @@ export default function ChatWidget() {
     } finally {
       setIsResolvingProductCard(false);
     }
-  }, [latestVisualImageUrl, voiceMode, latestVisualMessage, findInventoryItemByImage]);
+  }, [latestVisualImageUrl, voiceMode, latestTimelineMessage, findInventoryItemByImage]);
 
   const appendAssistant = useCallback((targetMode: ChatMode, content: string) => {
     setMessagesByMode((prev) => ({
@@ -388,6 +401,14 @@ export default function ChatWidget() {
         },
       ],
     }));
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 639px)');
+    const syncMobile = () => setIsMobile(media.matches);
+    syncMobile();
+    media.addEventListener('change', syncMobile);
+    return () => media.removeEventListener('change', syncMobile);
   }, []);
 
   useEffect(() => {
@@ -1077,34 +1098,29 @@ export default function ChatWidget() {
     }
   }, [voiceMode, voice.status, mergeVoiceTranscriptsIntoChat]);
 
-  /* ── Disconnect voice when dialog closes or page navigates ── */
-  useEffect(() => {
-    if (voiceMode && !open) {
-      console.log('[ChatWidget] Dialog closed while voice active—disconnecting');
-      voice.disconnect();
-      setVoiceMode(false);
-    }
-  }, [open, voiceMode, voice]);
-
-  useEffect(() => {
-    if (voiceMode) {
-      console.log('[ChatWidget] Page navigation detected while voice active—disconnecting');
-      voice.disconnect();
-      setVoiceMode(false);
-    }
-  }, [pathname, voiceMode, voice]);
-
   if (shouldHide) {
     return null;
   }
 
+  const ShellRoot = (isMobile ? Dialog : Drawer) as React.ComponentType<any>;
+  const ShellTrigger = (isMobile ? DialogTrigger : DrawerTrigger) as React.ComponentType<any>;
+  const ShellContent = (isMobile ? DialogContent : DrawerContent) as React.ComponentType<any>;
+  const ShellHeader = (isMobile ? DialogHeader : DrawerHeader) as React.ComponentType<any>;
+  const ShellTitle = (isMobile ? DialogTitle : DrawerTitle) as React.ComponentType<any>;
+  const ShellDescription = (isMobile ? DialogDescription : DrawerDescription) as React.ComponentType<any>;
+
+  const shellContentClassName = isMobile
+    ? 'chat-widget-surface fixed inset-0 z-50 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-none bg-vault-surface-elevated p-0 text-vault-text-light data-[state=closed]:slide-out-to-left-0 data-[state=closed]:slide-out-to-top-[100%] data-[state=open]:slide-in-from-left-0 data-[state=open]:slide-in-from-top-[100%] [&>button]:hidden'
+    : 'chat-widget-surface h-[92vh] w-full max-w-none rounded-t-2xl border-vault-border-accent bg-vault-surface-elevated p-0 text-vault-text-light md:h-[94vh]';
+
   return (
-    <Dialog
+    <ShellRoot
       open={open}
       onOpenChange={setOpen}
+      {...(!isMobile ? { direction: 'bottom' } : {})}
       modal
     >
-      <DialogTrigger asChild>
+      <ShellTrigger asChild>
         <motion.button
           type="button"
           className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center overflow-visible rounded-full border border-vault-gold/35 bg-vault-black/90 shadow-[0_0_22px_rgba(230,0,0,0.75),0_0_50px_rgba(204,0,0,0.5),0_10px_34px_rgba(0,0,0,0.55)]"
@@ -1140,10 +1156,11 @@ export default function ChatWidget() {
             className="relative z-10 object-contain h-9 w-9"
           />
         </motion.button>
-      </DialogTrigger>
+      </ShellTrigger>
 
-      <DialogContent
-        className="chat-widget-surface fixed inset-0 z-50 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-none bg-vault-surface-elevated p-0 text-vault-text-light data-[state=closed]:slide-out-to-left-0 data-[state=closed]:slide-out-to-top-[100%] data-[state=open]:slide-in-from-left-0 data-[state=open]:slide-in-from-top-[100%] sm:bottom-6 sm:left-auto sm:right-6 sm:top-auto sm:h-[85vh] sm:w-[440px] sm:rounded-2xl sm:border sm:border-vault-border-accent sm:data-[state=closed]:slide-out-to-left-0 sm:data-[state=closed]:slide-out-to-top-[100%] sm:data-[state=open]:slide-in-from-left-0 sm:data-[state=open]:slide-in-from-top-[100%] [&>button]:hidden"
+      <ShellContent
+        className={shellContentClassName}
+        {...(!isMobile ? { direction: 'bottom' } : {})}
       >
         <div className="absolute inset-0 pointer-events-none">
           <Image
@@ -1172,17 +1189,17 @@ export default function ChatWidget() {
           </div>
         </div>
 
-        <DialogHeader className="relative z-10 px-4 py-3 text-left border-b border-vault-border-accent bg-vault-black/55 backdrop-blur-sm">
+        <ShellHeader className="relative z-10 px-4 py-3 text-left border-b border-vault-border-accent bg-vault-black/55 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DialogTitle className="text-base font-display text-vault-text-light">{CHAT_NAME}</DialogTitle>
-              <DialogDescription className="text-xs font-body text-vault-text-muted">
+              <ShellTitle className="text-base font-display text-vault-text-light">{CHAT_NAME}</ShellTitle>
+              <ShellDescription className="text-xs font-body text-vault-text-muted">
                 {voiceMode
                   ? (voice.status === 'connecting'
                     ? 'Retrieving voice agent...'
                     : 'Voice session active — seamless context enabled')
                   : MODE_META[mode].subtitle}
-              </DialogDescription>
+              </ShellDescription>
             </div>
             <div className="flex items-center gap-1">
               {mode !== 'appraisal' && (
@@ -1200,24 +1217,23 @@ export default function ChatWidget() {
                   </svg>
                 </Button>
               )}
-              <DialogClose asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-8 h-8 text-vault-text-light hover:bg-vault-surface"
-                  onClick={() => {
-                    if (voiceMode) {
-                      voice.disconnect();
-                      mergeVoiceTranscriptsIntoChat();
-                      setVoiceMode(false);
-                    }
-                  }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </Button>
-              </DialogClose>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-vault-text-light hover:bg-vault-surface"
+                onClick={() => {
+                  if (voiceMode) {
+                    voice.disconnect();
+                    mergeVoiceTranscriptsIntoChat();
+                    setVoiceMode(false);
+                  }
+                  setOpen(false);
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
             </div>
           </div>
 
@@ -1257,7 +1273,7 @@ export default function ChatWidget() {
               <Progress value={appraisalProgress} className="h-2 bg-vault-black" />
             </div>
           )}
-        </DialogHeader>
+        </ShellHeader>
 
         <div className={`relative z-10 flex-1 overflow-hidden ${isAppraisalResultView ? 'px-2 py-2 sm:px-4 sm:py-4' : 'px-5 py-6 md:px-10 md:py-10'}`}>
           {isAppraisalResultView && (
@@ -1713,7 +1729,7 @@ export default function ChatWidget() {
             </Button>
           </form>
         )}
-      </DialogContent>
+      </ShellContent>
 
       <ProductCardDialog
         open={Boolean(selectedProductCard)}
@@ -1722,6 +1738,6 @@ export default function ChatWidget() {
         }}
         product={selectedProductCard}
       />
-    </Dialog>
+    </ShellRoot>
   );
 }

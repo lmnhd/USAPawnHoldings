@@ -36,6 +36,7 @@ interface DashboardLeadFeedProps {
   loading?: boolean;
   onLeadSelect?: (lead: Lead) => void;
   selectedLeadId?: string;
+  disableInternalScroll?: boolean;
 }
 
 const SOURCE_CONFIG: Record<string, { icon: string; label: string; bg: string; text: string }> = {
@@ -122,6 +123,7 @@ export default function DashboardLeadFeed({
   loading,
   onLeadSelect,
   selectedLeadId,
+  disableInternalScroll = false,
 }: DashboardLeadFeedProps) {
   if (loading) {
     return (
@@ -145,9 +147,8 @@ export default function DashboardLeadFeed({
     );
   }
 
-  return (
-    <ScrollArea className="max-h-[600px] scroll-pb-20">
-      <div className="pb-20 pr-1 space-y-3">
+  const feedContent = (
+    <div className="grid grid-cols-1 gap-2 pb-2 pr-1 xl:grid-cols-2 2xl:grid-cols-3">
         {leads.map((lead) => {
           // Distinguish between appointments and appraisals
           const isAppointment = lead.type === 'appointment';
@@ -162,11 +163,11 @@ export default function DashboardLeadFeed({
           const method = getContactMethod(lead);
 
           // Different border colors for appointments vs appraisals
-          const borderColor = isAppointment 
+          const borderColor = isAppointment
             ? 'border-vault-success/20 hover:border-vault-success/50'
             : isAppraisal
-            ? 'border-vault-gold/20 hover:border-vault-gold/50'
-            : 'border-vault-gold/5 hover:border-vault-gold/30';
+              ? 'border-vault-gold/20 hover:border-vault-gold/50'
+              : 'border-vault-gold/5 hover:border-vault-gold/30';
 
           const isSelected = selectedLeadId === lead.lead_id;
 
@@ -175,89 +176,88 @@ export default function DashboardLeadFeed({
               key={lead.lead_id}
               type="button"
               onClick={() => onLeadSelect?.(lead)}
-              className={`w-full text-left relative pb-10 transition-all duration-200 border group rounded-xl bg-vault-surface ${borderColor} ${isSelected ? 'ring-2 ring-vault-gold/40' : ''}`}
+              className={`dashboard-lead-item w-full h-full text-left transition-all duration-200 ${isSelected ? 'ring-2 ring-vault-gold/40 border-vault-gold/50' : ''}`}
             >
-              <CardContent className="p-4">
-                {/* Top Row — Name + Source Badge */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h4 className="text-sm font-semibold truncate font-body text-vault-text-light">
-                    {lead.customer_name || 'Anonymous'}
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    {lead.photo_url && (
-                      <div className="relative w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
-                        <Image
-                          src={lead.photo_url}
-                          alt="Appraisal thumbnail"
-                          fill
-                          unoptimized
-                          className="object-cover w-full h-full"
-                        />
-                      </div>
-                    )}
+              <CardContent className="p-3">
+                <div className="grid items-center grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_auto]">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {lead.photo_url && (
+                        <div className="relative w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
+                          <Image
+                            src={lead.photo_url}
+                            alt="Appraisal thumbnail"
+                            fill
+                            unoptimized
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                      )}
+                      <h4 className="text-sm font-semibold truncate font-body text-vault-text-light">
+                        {lead.customer_name || 'Anonymous'}
+                      </h4>
+                    </div>
+                    <p className="text-sm leading-snug text-vault-text-muted font-body line-clamp-1">
+                      {lead.item_description}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant="secondary"
-                      className={`flex-shrink-0 inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${source.bg} ${source.text}`}
+                      className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${source.bg} ${source.text}`}
                     >
                       <span aria-hidden="true">{source.icon}</span>
                       {source.label}
                     </Badge>
-                  </div>
-                </div>
-
-                {/* Item Description */}
-                <p className="mb-3 text-sm leading-snug text-vault-text-muted font-body line-clamp-2">
-                  {lead.item_description}
-                </p>
-
-                {/* Mid Row — Method + Appointment Time */}
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <Badge
-                    variant="secondary"
-                    className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-surface-elevated text-vault-text-muted"
-                  >
-                    Method: {method}
-                  </Badge>
-                  {appointmentTime && (
                     <Badge
                       variant="secondary"
-                      className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-success/15 text-vault-success"
+                      className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-surface-elevated text-vault-text-muted"
                     >
-                      {formatDateTime(appointmentTime) ?? appointmentTime}
+                      Method: {method}
                     </Badge>
-                  )}
-                </div>
+                    {appointmentTime && (
+                      <Badge
+                        variant="secondary"
+                        className="inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full bg-vault-success/15 text-vault-success"
+                      >
+                        {formatDateTime(appointmentTime) ?? appointmentTime}
+                      </Badge>
+                    )}
+                  </div>
 
-                {/* Bottom Row — Value, Status, Time */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    {lead.estimated_value != null && lead.estimated_value > 0 && (
-                      <span className="font-mono text-sm font-semibold text-vault-gold">
-                        ${lead.estimated_value.toLocaleString()}
+                  <div className="flex flex-col items-start gap-1 md:items-end">
+                    <div className="flex items-center gap-2">
+                      {lead.estimated_value != null && lead.estimated_value > 0 && (
+                        <span className="font-mono text-sm font-semibold text-vault-gold">
+                          ${lead.estimated_value.toLocaleString()}
+                        </span>
+                      )}
+                      <Badge
+                        variant="secondary"
+                        className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${status.bg} ${status.text}`}
+                      >
+                        <span aria-hidden="true">{status.icon}</span>
+                        {status.label}
+                      </Badge>
+                    </div>
+                    {dateStr && (
+                      <span className="font-mono text-xs text-vault-text-muted">
+                        {getRelativeTime(dateStr)}
                       </span>
                     )}
-                    <Badge
-                      variant="secondary"
-                      className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${status.bg} ${status.text}`}
-                    >
-                      <span aria-hidden="true">{status.icon}</span>
-                      {status.label}
-                    </Badge>
                   </div>
-                  {dateStr && (
-                    <span className="flex-shrink-0 font-mono text-xs text-vault-text-muted">
-                      {getRelativeTime(dateStr)}
-                    </span>
-                  )}
                 </div>
-
-                {/* Hover gold accent */}
-                <div className="absolute inset-y-0 left-0 w-0.5 rounded-l-xl bg-vault-gold opacity-0 group-hover:opacity-100 transition-opacity" />
               </CardContent>
             </button>
           );
         })}
       </div>
-    </ScrollArea>
   );
+
+  if (disableInternalScroll) {
+    return feedContent;
+  }
+
+  return <ScrollArea className="max-h-[600px] scroll-pb-20">{feedContent}</ScrollArea>;
 }

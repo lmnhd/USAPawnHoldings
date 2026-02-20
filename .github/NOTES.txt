@@ -7,3 +7,8 @@ twillio voice with AWS websocket and OpenAI Realtime API
  - drawer does not slide up when entering text in moble causing difficulty for user to type and see chat simultaneously
  - text overflow during chat inventory requests
 
+Recommendations Before You Sell
+Mandatory Setup Fee: Do not waive the $299 setup fee for large stores. Frame it to the client as the "Initial Inventory Digitization & AI Training Fee."
+Image Optimization: Ensure your frontend or backend resizes/compresses images before sending them to the OpenAI Vision API. Sending raw 12MB iPhone photos will unnecessarily inflate your token usage.
+Fair Use Clause: In your contract, include a "Fair Use" cap for Voice and SMS. For example: "The Core $149/mo plan includes up to 100 minutes of AI Voice handling and 1,000 SMS messages. Overage billed at $0.10/min and $0.02/SMS." This protects you if their customers start using the AI as a chatty companion.
+AWS is Safe: Your AWS estimate ($0-$2) is highly accurate. DynamoDB and Lambda free tiers are incredibly generous (25GB storage, 200M requests/mo). You won't pay a dime for AWS for a long time.

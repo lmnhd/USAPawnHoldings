@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { normalizeTagList } from '@/lib/tag-governance';
 import { motion, AnimatePresence } from 'motion/react';
 import ProductCardDialog, { type ProductCardData } from '@/components/ProductCardDialog';
+import ItemEntryForm from '@/components/ItemEntryForm';
 import {
   IconEdit,
   IconTrash,
@@ -24,6 +25,7 @@ import {
   IconSearch,
   IconFilter,
   IconRefresh,
+  IconPlus,
 } from '@tabler/icons-react';
 
 type InventoryStatus = 'available' | 'sold' | 'pending' | 'returned';
@@ -52,6 +54,7 @@ export default function DashboardInventoryManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedProductCard, setSelectedProductCard] = useState<ProductCardData | null>(null);
+  const [showItemEntry, setShowItemEntry] = useState(false);
   const searchQueryRef = useRef(searchQuery);
 
   useEffect(() => {
@@ -160,6 +163,14 @@ export default function DashboardInventoryManager() {
               Inventory Manager
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setShowItemEntry((prev) => !prev)}
+                className="bg-vault-gold hover:bg-vault-gold-light text-vault-text-on-gold font-semibold"
+              >
+                <IconPlus className="h-4 w-4 mr-2" />
+                {showItemEntry ? 'Close Add Item' : 'Add Item'}
+              </Button>
               <Badge variant="secondary" className="font-mono bg-vault-surface text-vault-text-muted">
                 {items.length} items
               </Badge>
@@ -227,6 +238,31 @@ export default function DashboardInventoryManager() {
           </div>
         </CardContent>
       </Card>
+
+      {showItemEntry && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display text-lg font-bold text-vault-text-light">
+              📦 Add New Item
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowItemEntry(false)}
+              className="border-vault-border text-vault-text-light hover:bg-vault-hover-overlay"
+            >
+              Close
+            </Button>
+          </div>
+          <ItemEntryForm
+            onClose={() => setShowItemEntry(false)}
+            onSuccess={() => {
+              setShowItemEntry(false);
+              fetchInventory();
+            }}
+          />
+        </div>
+      )}
 
       {/* Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

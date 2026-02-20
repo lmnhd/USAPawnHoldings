@@ -609,7 +609,7 @@ export default function DashboardChatHistory({ maxDisplay = 10 }: DashboardChatH
         </Button>
       </div>
 
-      <ScrollArea className="max-h-[600px]">
+      <ScrollArea className="h-full w-full">
         <div className="space-y-3 pr-4 pb-20">
           {displayCases.map(({ customer, caseItem, mergedCount }) => (
             <CaseCard

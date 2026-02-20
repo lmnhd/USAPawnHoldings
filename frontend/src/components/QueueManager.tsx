@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface QueueItem {
   lead_id: string;
@@ -53,6 +55,8 @@ function SkeletonRow() {
 }
 
 export default function QueueManager({ queue, loading, onMarkComplete }: QueueManagerProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
   // Sort by appointment time (earliest first), items without time go to end
   const sorted = [...queue]
     .sort((a, b) => {
@@ -66,12 +70,20 @@ export default function QueueManager({ queue, loading, onMarkComplete }: QueueMa
   if (loading) {
     return (
       <Card className="border-vault-gold/15 bg-vault-surface-elevated overflow-hidden">
-        <CardHeader className="px-5 py-4 border-b border-vault-gold/10">
+        <CardHeader 
+          className="px-5 py-4 border-b border-vault-gold/10 flex flex-row items-center justify-between space-y-0 cursor-pointer hover:bg-vault-surface/50 transition-colors"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
           <CardTitle className="font-display text-lg font-bold text-vault-text-light">Appointment Queue</CardTitle>
+          <div className="flex items-center gap-2">
+            {isCollapsed ? <ChevronDown className="w-5 h-5 text-vault-text-muted" /> : <ChevronUp className="w-5 h-5 text-vault-text-muted" />}
+          </div>
         </CardHeader>
-        <CardContent className="p-4 space-y-3">
-          {[1, 2, 3].map((i) => <SkeletonRow key={i} />)}
-        </CardContent>
+        {!isCollapsed && (
+          <CardContent className="p-4 space-y-3">
+            {[1, 2, 3].map((i) => <SkeletonRow key={i} />)}
+          </CardContent>
+        )}
       </Card>
     );
   }
@@ -79,18 +91,26 @@ export default function QueueManager({ queue, loading, onMarkComplete }: QueueMa
   if (sorted.length === 0) {
     return (
       <Card className="border-vault-gold/15 bg-vault-surface-elevated overflow-hidden">
-        <CardHeader className="px-5 py-4 border-b border-vault-gold/10">
+        <CardHeader 
+          className="px-5 py-4 border-b border-vault-gold/10 flex flex-row items-center justify-between space-y-0 cursor-pointer hover:bg-vault-surface/50 transition-colors"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
           <CardTitle className="font-display text-lg font-bold text-vault-text-light">Appointment Queue</CardTitle>
+          <div className="flex items-center gap-2">
+            {isCollapsed ? <ChevronDown className="w-5 h-5 text-vault-text-muted" /> : <ChevronUp className="w-5 h-5 text-vault-text-muted" />}
+          </div>
         </CardHeader>
-        <CardContent className="p-8 text-center">
-          <span className="text-4xl mb-3 block" aria-hidden="true">📋</span>
-          <p className="text-vault-text-muted font-body text-sm">
-            No appointments scheduled
-          </p>
-          <p className="text-vault-text-muted/60 font-body text-xs mt-1">
-            Scheduled appointments and walk-ins will appear here
-          </p>
-        </CardContent>
+        {!isCollapsed && (
+          <CardContent className="p-8 text-center">
+            <span className="text-4xl mb-3 block" aria-hidden="true">📋</span>
+            <p className="text-vault-text-muted font-body text-sm">
+              No appointments scheduled
+            </p>
+            <p className="text-vault-text-muted/60 font-body text-xs mt-1">
+              Scheduled appointments and walk-ins will appear here
+            </p>
+          </CardContent>
+        )}
       </Card>
     );
   }
@@ -98,16 +118,23 @@ export default function QueueManager({ queue, loading, onMarkComplete }: QueueMa
   return (
     <Card className="border-vault-gold/15 bg-vault-surface-elevated overflow-hidden">
       {/* Header */}
-      <CardHeader className="px-5 py-4 border-b border-vault-gold/10 flex flex-row items-center justify-between space-y-0">
+      <CardHeader 
+        className="px-5 py-4 border-b border-vault-gold/10 flex flex-row items-center justify-between space-y-0 cursor-pointer hover:bg-vault-surface/50 transition-colors"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
         <CardTitle className="font-display text-lg font-bold text-vault-text-light">Appointment Queue</CardTitle>
-        <Badge variant="secondary" className="text-xs font-mono text-vault-text-muted bg-vault-surface hover:bg-vault-surface px-2 py-1 rounded-full border-0">
-          {sorted.length} upcoming
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="text-xs font-mono text-vault-text-muted bg-vault-surface hover:bg-vault-surface px-2 py-1 rounded-full border-0">
+            {sorted.length} upcoming
+          </Badge>
+          {isCollapsed ? <ChevronDown className="w-5 h-5 text-vault-text-muted" /> : <ChevronUp className="w-5 h-5 text-vault-text-muted" />}
+        </div>
       </CardHeader>
 
       {/* Queue Items */}
-      <div className="divide-y divide-vault-gold/5">
-        {sorted.map((item) => {
+      {!isCollapsed && (
+        <div className="divide-y divide-vault-gold/5">
+          {sorted.map((item) => {
           const soon = isWithin30Min(item.appointment_time);
           const past = isPast(item.appointment_time);
 
@@ -173,7 +200,8 @@ export default function QueueManager({ queue, loading, onMarkComplete }: QueueMa
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </Card>
   );
 }

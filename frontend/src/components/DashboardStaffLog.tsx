@@ -65,12 +65,12 @@ function RunningTimer({ clockInTime }: { clockInTime: string }) {
 function SkeletonRow() {
   return (
     <TableRow>
-      <TableCell className="px-4 py-3"><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell className="px-4 py-3"><Skeleton className="h-4 w-32 rounded-lg mx-auto" /></TableCell>
+      <TableCell className="px-4 py-3"><Skeleton className="w-24 h-4" /></TableCell>
+      <TableCell className="px-4 py-3"><Skeleton className="w-32 h-4 mx-auto rounded-lg" /></TableCell>
       <TableCell className="px-4 py-3"><Skeleton className="h-4 w-14" /></TableCell>
-      <TableCell className="px-4 py-3"><Skeleton className="h-4 w-12" /></TableCell>
-      <TableCell className="px-4 py-3"><Skeleton className="h-4 w-20" /></TableCell>
-      <TableCell className="px-4 py-3"><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell className="px-4 py-3"><Skeleton className="w-12 h-4" /></TableCell>
+      <TableCell className="px-4 py-3"><Skeleton className="w-20 h-4" /></TableCell>
+      <TableCell className="px-4 py-3"><Skeleton className="w-24 h-4" /></TableCell>
     </TableRow>
   );
 }
@@ -106,9 +106,9 @@ export default function DashboardStaffLog({ staffLog, loading, onForceClockOut }
   if (!loading && displayEntries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <span className="text-4xl mb-4" aria-hidden="true">🕐</span>
-        <h3 className="font-display text-lg text-vault-text-light mb-2">No staff activity today</h3>
-        <p className="text-sm text-vault-text-muted font-body max-w-xs">
+        <span className="mb-4 text-4xl" aria-hidden="true">🕐</span>
+        <h3 className="mb-2 text-lg font-display text-vault-text-light">No staff activity today</h3>
+        <p className="max-w-xs text-sm text-vault-text-muted font-body">
           Clock-in and clock-out events will appear here once staff begin their shifts.
         </p>
       </div>
@@ -116,31 +116,31 @@ export default function DashboardStaffLog({ staffLog, loading, onForceClockOut }
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-vault-gold/10 pb-20">
+    <div className="pb-20 overflow-x-auto border rounded-xl border-vault-gold/15 dashboard-card">
       <Table className="w-full text-left">
         <TableHeader>
-          <TableRow className="border-b border-vault-gold/10 bg-vault-surface hover:bg-vault-surface">
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider">
+          <TableRow className="border-b border-vault-gold/20 bg-gradient-to-r from-vault-surface/60 to-vault-surface/40 hover:bg-gradient-to-r hover:from-vault-surface/70 hover:to-vault-surface/50">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider uppercase font-body text-vault-text-muted">
               Name
             </TableHead>
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider text-center">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider text-center uppercase font-body text-vault-text-muted">
               Status
             </TableHead>
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider uppercase font-body text-vault-text-muted">
               Time
             </TableHead>
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider uppercase font-body text-vault-text-muted">
               Duration
             </TableHead>
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider uppercase font-body text-vault-text-muted">
               Location
             </TableHead>
-            <TableHead className="px-4 py-3 text-xs font-body font-semibold text-vault-text-muted uppercase tracking-wider text-right">
+            <TableHead className="px-4 py-3 text-xs font-semibold tracking-wider text-right uppercase font-body text-vault-text-muted">
               Actions
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="divide-y divide-vault-gold/5">
+        <TableBody className="divide-y divide-vault-gold/10">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
             : displayEntries.map((entry) => {
@@ -151,13 +151,13 @@ export default function DashboardStaffLog({ staffLog, loading, onForceClockOut }
                     key={`${entry.staff_name}-status`}
                     className={`transition-colors ${
                       isActive 
-                        ? 'bg-vault-success/10 border-l-4 border-l-vault-success hover:bg-vault-success/15' 
-                        : 'bg-vault-surface-elevated/20 border-l-4 border-l-vault-text-muted/30 hover:bg-vault-surface-elevated/40'
+                        ? 'bg-gradient-to-r from-vault-success/12 to-transparent border-l-4 border-l-vault-success hover:from-vault-success/18 hover:to-transparent' 
+                        : 'bg-vault-surface-elevated/10 border-l-4 border-l-vault-text-muted/20 hover:bg-vault-surface-elevated/20'
                     }`}
                   >
                     {/* Name */}
                     <TableCell className="px-4 py-4">
-                      <span className="font-body text-sm font-semibold text-vault-text-light">
+                      <span className="text-sm font-semibold font-body text-vault-text-light">
                         {entry.staff_name}
                       </span>
                     </TableCell>
@@ -228,7 +228,7 @@ export default function DashboardStaffLog({ staffLog, loading, onForceClockOut }
                             }
                           }}
                           disabled={forcingOut === entry.staff_name}
-                          className="text-xs font-body px-2 py-1 h-7 border-vault-red/30 text-vault-red hover:bg-vault-red/10 hover:text-vault-red disabled:opacity-50"
+                          className="px-2 py-1 text-xs font-body h-7 border-vault-red/30 text-vault-red hover:bg-vault-red/10 hover:text-vault-red disabled:opacity-50"
                         >
                           {forcingOut === entry.staff_name ? (
                             <span className="flex items-center gap-1">

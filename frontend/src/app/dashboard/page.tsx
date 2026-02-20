@@ -474,17 +474,17 @@ function DashboardContent() {
             {/* Quick glance: recent leads + staff in compact view */}
             <BentoGrid className="md:auto-rows-[20rem] md:grid-cols-5">
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
+                "dashboard-card row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-red/40 md:col-span-3 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0 dashboard-section-header">
                   <IconAntenna className="w-4 h-4 text-vault-red" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Recent Leads</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{leads.length} total</Badge>
                 </CardHeader>
-                <Separator className="bg-vault-border" />
+                <div className="dashboard-divider mx-4" />
                 <CardContent className="flex-1 p-4 overflow-y-auto">
                   <DashboardLeadFeed
-                    leads={leads.slice(0, 8)}
+                    leads={leads}
                     loading={loading}
                     onLeadSelect={setSelectedLead}
                     selectedLeadId={selectedLead?.lead_id}
@@ -493,14 +493,14 @@ function DashboardContent() {
               </Card>
 
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
+                "dashboard-card-secondary row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-gold/40 md:col-span-2 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-4 pt-4 pb-2 space-y-0 dashboard-section-header">
                   <IconClockHour4 className="w-4 h-4 text-vault-gold" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
                 </CardHeader>
-                <Separator className="bg-vault-border" />
+                <div className="dashboard-divider mx-4" />
                 <CardContent className="flex-1 p-4 overflow-y-auto">
                   <DashboardStaffLog staffLog={staffLog.slice(0, 8)} loading={loading} onForceClockOut={handleForceClockOut} />
                 </CardContent>
@@ -518,26 +518,27 @@ function DashboardContent() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
           >
-            <BentoGrid className="md:auto-rows-[36rem] md:grid-cols-1">
+            <div className="space-y-4">
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 overflow-hidden"
+                "dashboard-card rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-red/40 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0 dashboard-section-header">
                   <IconAntenna className="w-4 h-4 text-vault-red" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">All Leads</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{leads.length} total</Badge>
                 </CardHeader>
-                <Separator className="bg-vault-border" />
-                <CardContent className="flex-1 p-5 overflow-y-auto">
+                <div className="dashboard-divider mx-5" />
+                <CardContent className="p-5">
                   <DashboardLeadFeed
                     leads={leads}
                     loading={loading}
                     onLeadSelect={setSelectedLead}
                     selectedLeadId={selectedLead?.lead_id}
+                    disableInternalScroll
                   />
                 </CardContent>
               </Card>
-            </BentoGrid>
+            </div>
 
             {/* Compliance Section */}
             {complianceAlerts.length > 0 && (
@@ -559,26 +560,26 @@ function DashboardContent() {
           >
             <BentoGrid className="md:auto-rows-[30rem] md:grid-cols-5">
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-gold/40 md:col-span-3 overflow-hidden"
+                "dashboard-card row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-gold/40 md:col-span-3 overflow-hidden"
               )}>
-                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+                <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0 dashboard-section-header">
                   <IconClockHour4 className="w-4 h-4 text-vault-gold" />
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Activity</CardTitle>
                   <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">{metrics.staff} active</Badge>
                 </CardHeader>
-                <Separator className="bg-vault-border" />
+                <div className="dashboard-divider mx-5" />
                 <CardContent className="flex-1 p-5 overflow-y-auto">
                   <DashboardStaffLog staffLog={staffLog} loading={loading} onForceClockOut={handleForceClockOut} />
                 </CardContent>
               </Card>
 
               <Card className={cn(
-                "row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-success/40 md:col-span-2 overflow-hidden"
+                "dashboard-card-secondary row-span-1 rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-success/40 md:col-span-2 overflow-hidden"
               )}>
-                <CardHeader className="px-5 pt-5 pb-3">
+                <CardHeader className="px-5 pt-5 pb-3 dashboard-section-header">
                   <CardTitle className="text-lg font-bold font-display text-vault-text-light">Staff Onboarding</CardTitle>
                 </CardHeader>
-                <Separator className="bg-vault-border" />
+                <div className="dashboard-divider mx-5" />
                 <CardContent className="flex-1 p-5 overflow-y-auto">
                   <StaffOnboarding />
                 </CardContent>
@@ -616,15 +617,15 @@ function DashboardContent() {
             transition={{ duration: 0.2 }}
           >
             <Card className={cn(
-              "rounded-2xl group/bento hover:shadow-xl transition duration-300 shadow-vault border-vault-border bg-vault-surface-elevated flex flex-col hover:border-vault-red/40 overflow-hidden"
+              "dashboard-card rounded-2xl group/bento hover:shadow-xl transition duration-300 flex flex-col hover:border-vault-red/40 overflow-hidden max-h-[calc(100vh-18rem)]"
             )}>
-              <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0">
+              <CardHeader className="flex flex-row items-center gap-3 px-5 pt-5 pb-3 space-y-0 dashboard-section-header">
                 <IconMessage className="w-4 h-4 text-vault-red" />
                 <CardTitle className="text-lg font-bold font-display text-vault-text-light">Chat History</CardTitle>
                 <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">QA/Review</Badge>
               </CardHeader>
-              <Separator className="bg-vault-border" />
-              <CardContent className="flex-1 p-5 overflow-y-auto">
+              <div className="dashboard-divider mx-5" />
+              <CardContent className="flex-1 p-5 overflow-hidden">
                 <DashboardChatHistory maxDisplay={0} />
               </CardContent>
             </Card>

@@ -147,6 +147,38 @@ function getBasePromptForMode(mode: "general" | "appraisal" | "ops") {
   return GENERAL_SYSTEM_PROMPT || VAULT_SYSTEM_PROMPT;
 }
 
+function userExplicitlyRequestedScheduling(lastUserText: string): boolean {
+  const text = lastUserText.toLowerCase();
+  return /\b(schedule|book|set up|arrange)\b.*\b(visit|appointment|meeting|time)\b/.test(text)
+    || /\b(can i|could i|i want to|i'd like to|let me)\b.*\b(schedule|book)\b/.test(text)
+    || /\bappointment\b/.test(text);
+}
+
+function userConfirmedSchedulingAfterPrompt(lastUserText: string, previousAssistantText: string | null): boolean {
+  const user = lastUserText.trim().toLowerCase();
+  if (!user) return false;
+
+  const affirmativeOnly = /^(yes|yeah|yep|yup|sure|ok|okay|please|sounds good|go ahead|do it)\b/.test(user);
+  const assistant = (previousAssistantText ?? "").toLowerCase();
+  const assistantAskedToSchedule = /\b(want|would you like|should i|can i)\b.*\b(schedule|book)\b.*\b(visit|appointment)\b\?/.test(assistant)
+    || /\bschedule a visit\?/.test(assistant);
+
+  return affirmativeOnly && assistantAskedToSchedule;
+}
+
+function isSchedulingFormSpec(result: unknown): boolean {
+  const typed = result as { form_spec?: { title?: unknown; fields?: unknown[] } };
+  const title = String(typed?.form_spec?.title ?? "").toLowerCase();
+  if (/\b(schedule|appointment|visit)\b/.test(title)) return true;
+
+  const fields = Array.isArray(typed?.form_spec?.fields) ? typed.form_spec.fields : [];
+  const fieldNames = fields
+    .map((field) => String((field as { name?: unknown })?.name ?? "").toLowerCase())
+    .filter(Boolean);
+
+  return fieldNames.includes("preferred_time") || fieldNames.includes("time") || fieldNames.includes("time_slot");
+}
+
 function formatInventoryResponse(result: InventoryToolResult): string {
   const count = Number(result.count ?? 0);
   const topMatches = Array.isArray(result.top_matches) ? result.top_matches : [];
@@ -916,6 +948,38 @@ export async function POST(req: NextRequest) {
         
         // Special handling for form requests - return directly to frontend
         if (call.function.name === "request_form" && (result as { __form_request?: boolean }).__form_request) {
+          if (mode === "general" && isSchedulingFormSpec(result)) {
+            const shouldAllowForm = userExplicitlyRequestedScheduling(lastUserText)
+              || userConfirmedSchedulingAfterPrompt(
+                lastUserText,
+                typeof previousAssistantMessage?.content === "string" ? previousAssistantMessage.content : null,
+              );
+
+            if (!shouldAllowForm) {
+              const clarificationText = "Want me to schedule a visit for you? If yes, I’ll pull up a quick form.";
+              const now = new Date().toISOString();
+              const confirmationConversation = createUnifiedConversationRecord({
+                conversation_id: conversationId,
+                source: mode === "appraisal" ? "appraise" : "web_chat",
+                channel: "web",
+                messages: [...userMessages, { role: "assistant", content: clarificationText }] as unknown as Array<Record<string, unknown>>,
+                started_at: now,
+                ended_at: now,
+                source_metadata: {
+                  mode,
+                  page_path: pagePath,
+                  role_hint: roleHint,
+                  blocked_schedule_form_without_confirmation: true,
+                },
+              });
+              await putItem(TABLES.conversations, confirmationConversation);
+
+              const response = streamTextResponse(clarificationText);
+              response.headers.set("X-Conversation-ID", conversationId);
+              return response;
+            }
+          }
+
           console.log(`   ✓ Form request detected, returning to frontend`);
           // Save conversation state before returning form
           const now = new Date().toISOString();
