@@ -499,15 +499,22 @@ export function useVoiceChat(): UseVoiceChatReturn {
           const resultCursorKey = buildInventoryResultKey(topMatches);
           const cursorKey = resultCursorKey || queryKey;
 
-          const nextIndex = inventoryImageCursorRef.current.get(cursorKey) ?? 0;
-          const selectedIndex = navigationRequest && topMatches.length > 0
-            ? nextIndex % topMatches.length
-            : 0;
-          const selectedMatch = topMatches.length > 0 ? topMatches[selectedIndex] : null;
-
-          if (topMatches.length > 0) {
-            inventoryImageCursorRef.current.set(cursorKey, (selectedIndex + 1) % topMatches.length);
+          let currentIndex = inventoryImageCursorRef.current.get(cursorKey) ?? 0;
+          
+          // On navigation request, always move to next image
+          if (navigationRequest && topMatches.length > 0) {
+            currentIndex = (currentIndex + 1) % topMatches.length;
+            inventoryImageCursorRef.current.set(cursorKey, (currentIndex + 1) % topMatches.length);
+          } else if (topMatches.length > 0 && currentIndex > 0) {
+            // If we already showed this query, maintain position
+            inventoryImageCursorRef.current.set(cursorKey, (currentIndex + 1) % topMatches.length);
+          } else if (topMatches.length > 0) {
+            // First time seeing this result, set initial position for next call
+            inventoryImageCursorRef.current.set(cursorKey, 1 % topMatches.length);
           }
+          
+          const selectedIndex = currentIndex % topMatches.length;
+          const selectedMatch = topMatches.length > 0 ? topMatches[selectedIndex] : null;
 
           const selectedImage = selectedMatch
             ? String(selectedMatch.image_url ?? '').trim() ||

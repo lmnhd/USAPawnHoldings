@@ -1077,6 +1077,23 @@ export default function ChatWidget() {
     }
   }, [voiceMode, voice.status, mergeVoiceTranscriptsIntoChat]);
 
+  /* ── Disconnect voice when dialog closes or page navigates ── */
+  useEffect(() => {
+    if (voiceMode && !open) {
+      console.log('[ChatWidget] Dialog closed while voice active—disconnecting');
+      voice.disconnect();
+      setVoiceMode(false);
+    }
+  }, [open, voiceMode, voice]);
+
+  useEffect(() => {
+    if (voiceMode) {
+      console.log('[ChatWidget] Page navigation detected while voice active—disconnecting');
+      voice.disconnect();
+      setVoiceMode(false);
+    }
+  }, [pathname, voiceMode, voice]);
+
   if (shouldHide) {
     return null;
   }
