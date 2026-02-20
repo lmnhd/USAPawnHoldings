@@ -148,7 +148,7 @@ export default function DashboardLeadFeed({
   }
 
   const feedContent = (
-    <div className="grid grid-cols-1 gap-2 pb-2 pr-1 xl:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 pb-2 pr-1 xl:grid-cols-1 2xl:grid-cols-2">
         {leads.map((lead) => {
           // Distinguish between appointments and appraisals
           const isAppointment = lead.type === 'appointment';
@@ -170,12 +170,12 @@ export default function DashboardLeadFeed({
               onClick={() => onLeadSelect?.(lead)}
               className={`dashboard-lead-item w-full h-full text-left transition-all duration-200 ${isSelected ? 'ring-2 ring-vault-gold/40 border-vault-gold/50' : ''}`}
             >
-              <CardContent className="p-3">
-                <div className="grid items-center grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_auto]">
+              <CardContent className="p-4">
+                <div className="grid items-center grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)_auto]">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       {lead.photo_url && (
-                        <div className="relative w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
+                        <div className="relative w-10 h-10 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
                           <Image
                             src={lead.photo_url}
                             alt="Appraisal thumbnail"
@@ -185,16 +185,16 @@ export default function DashboardLeadFeed({
                           />
                         </div>
                       )}
-                      <h4 className="text-sm font-semibold truncate font-body text-vault-text-light">
+                      <h4 className="text-base font-semibold truncate font-body text-vault-text-light">
                         {lead.customer_name || 'Anonymous'}
                       </h4>
                     </div>
-                    <p className="text-sm leading-snug text-vault-text-muted font-body line-clamp-1">
+                    <p className="text-sm leading-snug text-vault-text-muted font-body line-clamp-2">
                       {lead.item_description}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <Badge
                       variant="secondary"
                       className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full ${source.bg} ${source.text}`}
@@ -218,7 +218,7 @@ export default function DashboardLeadFeed({
                     )}
                   </div>
 
-                  <div className="flex flex-col items-start gap-1 md:items-end">
+                  <div className="flex flex-col items-start gap-1 lg:items-end">
                     <div className="flex items-center gap-2">
                       {lead.estimated_value != null && lead.estimated_value > 0 && (
                         <span className="font-mono text-sm font-semibold text-vault-gold">

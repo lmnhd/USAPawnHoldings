@@ -28,6 +28,7 @@ import DashboardInventoryManager from '@/components/DashboardInventoryManager';
 import StaffOnboarding from '@/components/StaffOnboarding';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -366,15 +367,28 @@ function DashboardContent() {
             Command Center for USA Pawn Holdings
           </p>
         </div>
-        <div className="flex items-center gap-2 font-mono text-xs text-vault-text-muted">
-          <span
-            className={`inline-block w-2 h-2 rounded-full ${
-              loading ? 'bg-vault-warning animate-pulse' : 'bg-vault-success'
-            }`}
-          />
-          Last updated:{' '}
-          {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          <span className="text-vault-text-muted/50">(auto-refresh 30s)</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 font-mono text-xs text-vault-text-muted">
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${
+                loading ? 'bg-vault-warning animate-pulse' : 'bg-vault-success'
+              }`}
+            />
+            Last updated:{' '}
+            {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span className="text-vault-text-muted/50">(auto-refresh 30s)</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-vault-border text-vault-text-light hover:bg-vault-surface"
+            onClick={() => {
+              window.location.assign('/logout');
+            }}
+          >
+            Log out
+          </Button>
         </div>
       </div>
 
@@ -624,7 +638,7 @@ function DashboardContent() {
                 <Badge variant="secondary" className="px-2 py-1 ml-auto font-mono rounded-full text-vault-text-muted bg-vault-surface">QA/Review</Badge>
               </CardHeader>
               <div className="dashboard-divider mx-5" />
-              <CardContent className="flex-1 p-5 overflow-hidden">
+              <CardContent className="flex-1 flex flex-col p-5 overflow-hidden min-h-0">
                 <DashboardChatHistory maxDisplay={0} />
               </CardContent>
             </Card>

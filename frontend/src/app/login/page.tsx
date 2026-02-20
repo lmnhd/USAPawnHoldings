@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react';
 import type { FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,12 +17,39 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/dashboard';
+  const requestedRedirect = searchParams.get('redirect') || '/dashboard';
+  const redirectPath = requestedRedirect.startsWith('/') ? requestedRedirect : '/dashboard';
   
   // Determine role from redirect path
   const role = redirectPath.startsWith('/staff') ? 'staff' : 'owner';
+
+  const verifySession = async (): Promise<boolean> => {
+    const retryDelays = [0, 150, 350];
+
+    for (const delayMs of retryDelays) {
+      if (delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      const checkRes = await fetch('/api/auth?action=check', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      if (!checkRes.ok) {
+        continue;
+      }
+
+      const checkData = (await checkRes.json().catch(() => ({}))) as { authenticated?: boolean };
+      if (checkData.authenticated) {
+        return true;
+      }
+    }
+
+    return false;
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,17 +60,30 @@ function LoginForm() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
         body: JSON.stringify({ password, action: 'login', role }),
       });
 
-      if (!res.ok) {
-        throw new Error('Invalid password');
+      const payload = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || 'Invalid password');
+      }
+
+      const authenticated = await verifySession();
+      if (!authenticated) {
+        throw new Error('Login succeeded, but your browser did not persist the session cookie. Please try again.');
       }
 
       // Redirect to original path or default based on role
-      router.push(redirectPath);
-    } catch {
-      setError('Invalid password. Please try again.');
+      window.location.assign(redirectPath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
