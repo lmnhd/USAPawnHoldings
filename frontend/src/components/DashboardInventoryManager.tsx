@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -258,13 +259,15 @@ export default function DashboardInventoryManager() {
                       {item.images && item.images.length > 0 ? (
                         <button
                           type="button"
-                          className="w-full h-full"
+                          className="relative w-full h-full"
                           onClick={() => setSelectedProductCard(item)}
                           aria-label={`Open product card for ${item.brand || 'inventory item'}`}
                         >
-                          <img
+                          <Image
                             src={item.images[0]}
                             alt={item.description}
+                            fill
+                            unoptimized
                             className="w-full h-full object-cover"
                           />
                         </button>
@@ -491,9 +494,11 @@ export default function DashboardInventoryManager() {
                   <div className="grid grid-cols-3 gap-2">
                     {(editingItem.images || []).map((img, idx) => (
                       <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden bg-vault-black border border-vault-border">
-                        <img
+                        <Image
                           src={img}
                           alt={`Image ${idx + 1}`}
+                          fill
+                          unoptimized
                           className="w-full h-full object-cover"
                         />
                         <button

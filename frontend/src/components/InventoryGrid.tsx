@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -130,18 +131,19 @@ function ItemCard({ item, onImageClick }: { item: InventoryItem; onImageClick: (
         {img ? (
           <button
             type="button"
-            className="w-full h-full text-left"
+            className="relative w-full h-full text-left"
             onClick={(event) => {
               event.stopPropagation();
               onImageClick(item);
             }}
             aria-label={`Open product card for ${name}`}
           >
-            <img
+            <Image
               src={img}
               alt={name}
+              fill
+              unoptimized
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-              loading="lazy"
             />
           </button>
         ) : (

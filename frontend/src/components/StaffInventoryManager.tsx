@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -278,9 +279,11 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
                     {/* Thumbnail */}
                     <div className="relative aspect-video rounded-lg overflow-hidden bg-vault-black">
                       {item.images && item.images.length > 0 ? (
-                        <img
+                        <Image
                           src={item.images[0]}
                           alt={item.description || 'Item'}
+                          fill
+                          unoptimized
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -497,9 +500,11 @@ export default function StaffInventoryManager({ staffName }: StaffInventoryManag
                 <div className="grid grid-cols-3 gap-2">
                   {(editingItem.images || []).map((img, idx) => (
                     <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden bg-vault-black border border-vault-gold/10">
-                      <img
+                      <Image
                         src={img}
                         alt={`Image ${idx + 1}`}
+                        fill
+                        unoptimized
                         className="w-full h-full object-cover"
                       />
                       <button

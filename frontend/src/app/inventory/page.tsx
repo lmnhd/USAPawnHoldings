@@ -23,8 +23,6 @@ const CATEGORIES = [
 ];
 
 const PAGE_SIZE = 20;
-const AVAILABILITY_FILTERS = ['all', 'available', 'pending', 'sold', 'returned'] as const;
-const CONDITION_FILTERS = ['all', 'excellent', 'good', 'fair', 'poor'] as const;
 
 /* ── Page ── */
 
@@ -46,8 +44,8 @@ function InventoryContent() {
   const [page, setPage] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [availability, setAvailability] = useState<(typeof AVAILABILITY_FILTERS)[number]>('all');
-  const [condition, setCondition] = useState<(typeof CONDITION_FILTERS)[number]>('all');
+  const [availability, setAvailability] = useState<'all' | 'available' | 'pending' | 'sold' | 'returned'>('all');
+  const [condition, setCondition] = useState<'all' | 'excellent' | 'good' | 'fair' | 'poor'>('all');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');

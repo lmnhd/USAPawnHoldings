@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,12 +51,15 @@ export default function PriceLookupTool({ onClose }: PriceLookupToolProps) {
   const [showManual, setShowManual] = useState(false);
 
   // Default store margins (configurable)
-  const storeMargins: StoreMargins = {
-    payoutPercentMin: 0.70,
-    payoutPercentMax: 0.80,
-    pawnLoanPercent: 0.30,
-    retailPercent: 1.20,
-  };
+  const storeMargins: StoreMargins = useMemo(
+    () => ({
+      payoutPercentMin: 0.70,
+      payoutPercentMax: 0.80,
+      pawnLoanPercent: 0.30,
+      retailPercent: 1.20,
+    }),
+    []
+  );
 
   // Fetch spot prices on mount
   useEffect(() => {

@@ -1379,13 +1379,15 @@ export default function ChatWidget() {
                         type="button"
                         onClick={handleLatestVisualImageClick}
                         disabled={voiceMode}
-                        className="block disabled:cursor-default"
+                        className="relative block w-64 h-36 sm:h-44 sm:w-80 disabled:cursor-default"
                         aria-label="Open product card"
                       >
-                        <img
+                        <Image
                           src={latestVisualImageUrl}
                           alt="Inventory result"
-                          className="object-cover w-64 rounded-lg h-36 sm:h-44 sm:w-80"
+                          fill
+                          unoptimized
+                          className="object-cover rounded-lg"
                         />
                       </button>
                     </motion.div>
@@ -1526,7 +1528,14 @@ export default function ChatWidget() {
                   <div className="grid grid-cols-3 gap-2">
                     {appraisal.photos.map((photo, index) => (
                       <div key={photo.id} className="relative p-1 border rounded-md border-vault-border bg-vault-surface">
-                        <img src={photo.preview} alt={photo.label} className="object-cover w-full h-20 rounded" />
+                        <Image
+                          src={photo.preview}
+                          alt={photo.label}
+                          width={320}
+                          height={80}
+                          unoptimized
+                          className="object-cover w-full h-20 rounded"
+                        />
                         <button
                           type="button"
                           className="absolute right-1 top-1 rounded bg-vault-black/70 px-1.5 text-xs text-white"

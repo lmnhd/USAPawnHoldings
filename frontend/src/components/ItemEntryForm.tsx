@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useRef, ChangeEvent, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -465,9 +466,12 @@ export default function ItemEntryForm({ onClose, onSuccess }: ItemEntryFormProps
                 <div className="grid grid-cols-3 gap-3">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative group">
-                    <img
+                    <Image
                       src={img}
                       alt={`Item ${idx + 1}`}
+                      width={320}
+                      height={96}
+                      unoptimized
                       className="object-cover w-full h-24 border rounded-lg border-vault-gold/15"
                     />
                     {originalImages[idx] && (

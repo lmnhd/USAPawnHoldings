@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -184,10 +185,12 @@ export default function DashboardLeadFeed({
                   </h4>
                   <div className="flex items-center gap-2">
                     {lead.photo_url && (
-                      <div className="w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
-                        <img
+                      <div className="relative w-8 h-8 overflow-hidden border rounded-md border-vault-border bg-vault-black-deep">
+                        <Image
                           src={lead.photo_url}
                           alt="Appraisal thumbnail"
+                          fill
+                          unoptimized
                           className="object-cover w-full h-full"
                         />
                       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -116,7 +117,9 @@ export default function ProductCardDialog({ open, onOpenChange, product }: Produ
           <div className="grid gap-5 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)]">
             <div className="rounded-xl border border-vault-border overflow-hidden bg-vault-surface">
               {image ? (
-                <img src={image} alt={title} className="w-full aspect-[4/3] object-cover" />
+                <div className="relative w-full aspect-[4/3]">
+                  <Image src={image} alt={title} fill unoptimized className="object-cover" />
+                </div>
               ) : (
                 <div className="w-full aspect-[4/3] flex items-center justify-center text-vault-text-muted">
                   No product image
