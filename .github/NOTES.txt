@@ -3,5 +3,7 @@ work on neighborhood pages
 
 twillio voice with AWS websocket and OpenAI Realtime API
 
-
+ - inventory search widget covers half page in mobile!
+ - drawer does not slide up when entering text in moble causing difficulty for user to type and see chat simultaneously
+ - text overflow during chat inventory requests
 

@@ -18,14 +18,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from '@/components/ui/drawer';
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import ProductCardDialog, { type ProductCardData } from './ProductCardDialog';
 import DynamicFormPanel from './DynamicFormPanel';
 import { useVoiceChat, type VoiceFormSpec } from '@/hooks/useVoiceChat';
@@ -1082,13 +1082,12 @@ export default function ChatWidget() {
   }
 
   return (
-    <Drawer
+    <Dialog
       open={open}
       onOpenChange={setOpen}
-      direction="bottom"
       modal
     >
-      <DrawerTrigger asChild>
+      <DialogTrigger asChild>
         <motion.button
           type="button"
           className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center overflow-visible rounded-full border border-vault-gold/35 bg-vault-black/90 shadow-[0_0_22px_rgba(230,0,0,0.75),0_0_50px_rgba(204,0,0,0.5),0_10px_34px_rgba(0,0,0,0.55)]"
@@ -1124,11 +1123,10 @@ export default function ChatWidget() {
             className="relative z-10 object-contain h-9 w-9"
           />
         </motion.button>
-      </DrawerTrigger>
+      </DialogTrigger>
 
-      <DrawerContent
-        direction="bottom"
-        className="chat-widget-surface h-[92vh] w-full max-w-none rounded-t-2xl border-vault-border-accent bg-vault-surface-elevated p-0 text-vault-text-light md:h-[94vh]"
+      <DialogContent
+        className="chat-widget-surface fixed inset-0 z-50 flex h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-none bg-vault-surface-elevated p-0 text-vault-text-light data-[state=closed]:slide-out-to-left-0 data-[state=closed]:slide-out-to-top-[100%] data-[state=open]:slide-in-from-left-0 data-[state=open]:slide-in-from-top-[100%] sm:bottom-6 sm:left-auto sm:right-6 sm:top-auto sm:h-[85vh] sm:w-[440px] sm:rounded-2xl sm:border sm:border-vault-border-accent sm:data-[state=closed]:slide-out-to-left-0 sm:data-[state=closed]:slide-out-to-top-[100%] sm:data-[state=open]:slide-in-from-left-0 sm:data-[state=open]:slide-in-from-top-[100%] [&>button]:hidden"
       >
         <div className="absolute inset-0 pointer-events-none">
           <Image
@@ -1157,17 +1155,17 @@ export default function ChatWidget() {
           </div>
         </div>
 
-        <DrawerHeader className="relative z-10 px-4 py-3 text-left border-b border-vault-border-accent bg-vault-black/55 backdrop-blur-sm">
+        <DialogHeader className="relative z-10 px-4 py-3 text-left border-b border-vault-border-accent bg-vault-black/55 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DrawerTitle className="text-base font-display text-vault-text-light">{CHAT_NAME}</DrawerTitle>
-              <DrawerDescription className="text-xs font-body text-vault-text-muted">
+              <DialogTitle className="text-base font-display text-vault-text-light">{CHAT_NAME}</DialogTitle>
+              <DialogDescription className="text-xs font-body text-vault-text-muted">
                 {voiceMode
                   ? (voice.status === 'connecting'
                     ? 'Retrieving voice agent...'
                     : 'Voice session active — seamless context enabled')
                   : MODE_META[mode].subtitle}
-              </DrawerDescription>
+              </DialogDescription>
             </div>
             <div className="flex items-center gap-1">
               {mode !== 'appraisal' && (
@@ -1185,7 +1183,7 @@ export default function ChatWidget() {
                   </svg>
                 </Button>
               )}
-              <DrawerClose asChild>
+              <DialogClose asChild>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1202,7 +1200,7 @@ export default function ChatWidget() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </Button>
-              </DrawerClose>
+              </DialogClose>
             </div>
           </div>
 
@@ -1242,7 +1240,7 @@ export default function ChatWidget() {
               <Progress value={appraisalProgress} className="h-2 bg-vault-black" />
             </div>
           )}
-        </DrawerHeader>
+        </DialogHeader>
 
         <div className={`relative z-10 flex-1 overflow-hidden ${isAppraisalResultView ? 'px-2 py-2 sm:px-4 sm:py-4' : 'px-5 py-6 md:px-10 md:py-10'}`}>
           {isAppraisalResultView && (
@@ -1698,7 +1696,7 @@ export default function ChatWidget() {
             </Button>
           </form>
         )}
-      </DrawerContent>
+      </DialogContent>
 
       <ProductCardDialog
         open={Boolean(selectedProductCard)}
@@ -1707,6 +1705,6 @@ export default function ChatWidget() {
         }}
         product={selectedProductCard}
       />
-    </Drawer>
+    </Dialog>
   );
 }
