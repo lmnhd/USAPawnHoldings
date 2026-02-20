@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USA Pawn Holdings — Prototype Preview</title>
+  <style>
+    :root {
+      --bg: #0B1426;
+      --card: #142238;
+      --text: #FFFFFF;
+      --muted: #8B9DB7;
+      --accent: #4A90D9;
+      --accent-2: #5BA0E8;
+      --border: rgba(74, 144, 217, 0.25);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top left, #111D33, var(--bg));
+      color: var(--text);
+      font-family: "Playfair Display", Georgia, serif;
+      padding: 20px;
+    }
+
+    .flyer {
+      width: min(100%, 980px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      display: grid;
+      grid-template-columns: 1.2fr 160px;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .headline {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.1;
+      letter-spacing: 0.01em;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      font-family: "Outfit", system-ui, sans-serif;
+      color: var(--muted);
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+
+    .body {
+      margin: 16px 0 0;
+      font-family: "Outfit", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      max-width: 62ch;
+    }
+
+    .qr-wrap {
+      text-align: center;
+    }
+
+    .qr {
+      width: 140px;
+      height: 140px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 8px;
+    }
+
+    .qr-label {
+      margin-top: 10px;
+      font-family: "Outfit", system-ui, sans-serif;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .cta {
+      margin-top: 6px;
+      font-family: "Outfit", system-ui, sans-serif;
+      font-size: 14px;
+      color: var(--accent-2);
+    }
+
+    @media (max-width: 760px) {
+      .flyer {
+        grid-template-columns: 1fr;
+      }
+
+      .qr-wrap {
+        justify-self: start;
+      }
+    }
+
+    @media print {
+      @page { margin: 0.3in; size: 8.5in 5.5in; }
+      body { margin: 0; }
+      body { padding: 0; background: #fff; }
+      .flyer {
+        width: 100%;
+        border-radius: 0;
+        border-color: #cad8ea;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="flyer" aria-label="USA Pawn Holdings presentation flyer">
+    <div>
+      <h1 class="headline">I Found an Edge for USA Pawn Holdings</h1>
+      <p class="subtitle">A quick operational prototype built from your public digital footprint</p>
+      <p class="body">Hi Desiree—while searching pawn services on Google Maps, I found USA Pawn Holdings, reviewed your website and customer-signal footprint, and spotted a clear opportunity around after-hours capture, inventory visibility, and appraisal conversion; I built a working live prototype that demonstrates those fixes in real flows (not slides), and if you’re curious, scan this code to see the full gap report and demo in under a minute.</p>
+    </div>
+    <div class="qr-wrap">
+      <img class="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://usapawn.vercel.app/pitch" alt="QR code to USA Pawn Holdings live pitch page" />
+      <div class="qr-label">Prototype Preview</div>
+      <div class="cta">Scan to view live demo.</div>
+    </div>
+  </section>
+</body>
+</html>

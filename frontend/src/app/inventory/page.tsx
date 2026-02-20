@@ -6,6 +6,7 @@ import Link from 'next/link';
 import InventoryGrid, { InventoryItem } from '@/components/InventoryGrid';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /* ── Constants ── */
@@ -22,6 +23,8 @@ const CATEGORIES = [
 ];
 
 const PAGE_SIZE = 20;
+const AVAILABILITY_FILTERS = ['all', 'available', 'pending', 'sold', 'returned'] as const;
+const CONDITION_FILTERS = ['all', 'excellent', 'good', 'fair', 'poor'] as const;
 
 /* ── Page ── */
 
@@ -42,6 +45,12 @@ function InventoryContent() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [availability, setAvailability] = useState<(typeof AVAILABILITY_FILTERS)[number]>('all');
+  const [condition, setCondition] = useState<(typeof CONDITION_FILTERS)[number]>('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
 
   /* Initialize category from URL params on mount */
   useEffect(() => {
@@ -76,21 +85,42 @@ function InventoryContent() {
     setLoading(true);
     setError('');
     try {
-      const query = category === 'All' ? '' : `?category=${category}`;
-      const res = await fetch(`/api/inventory${query}`);
+      const params = new URLSearchParams({ limit: '1000' });
+      if (category !== 'All') {
+        params.set('category', category);
+      }
+      if (availability !== 'all') {
+        params.set('status', availability);
+      }
+      if (searchTerm.trim().length > 0) {
+        params.set('keyword', searchTerm.trim());
+      }
+      if (condition !== 'all') {
+        params.set('condition', condition);
+      }
+      if (minPrice.trim().length > 0) {
+        params.set('min_price', minPrice.trim());
+      }
+      if (maxPrice.trim().length > 0) {
+        params.set('max_price', maxPrice.trim());
+      }
+      params.set('sort', sortBy);
+
+      const res = await fetch(`/api/inventory?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const allItems: InventoryItem[] = data.items ?? [];
-      setTotalCount(allItems.length);
+      setTotalCount(Number(data.count ?? allItems.length));
       setItems(allItems);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load inventory';
       setError(msg);
       setItems([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [category]);
+  }, [availability, category, condition, maxPrice, minPrice, searchTerm, sortBy]);
 
   useEffect(() => {
     setPage(1);
@@ -98,8 +128,25 @@ function InventoryContent() {
   }, [fetchInventory]);
 
   /* Pagination */
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const paginatedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const clearFilters = () => {
+    setCategory('All');
+    setAvailability('all');
+    setCondition('all');
+    setSearchTerm('');
+    setMinPrice('');
+    setMaxPrice('');
+    setSortBy('newest');
+    setPage(1);
+  };
 
   return (
     <>
@@ -198,6 +245,89 @@ function InventoryContent() {
               );
             })}
           </div>
+
+          <div className="mt-4 rounded-2xl border border-vault-gold/15 bg-vault-surface-elevated/95 p-3 sm:p-4 shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3">
+              <div className="lg:col-span-4">
+                <Input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search inventory by keyword, brand, model..."
+                  className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted"
+                />
+              </div>
+
+              <div className="lg:col-span-2">
+                <Select value={availability} onValueChange={(value) => setAvailability(value as (typeof AVAILABILITY_FILTERS)[number])}>
+                  <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
+                    <SelectValue placeholder="Availability" />
+                  </SelectTrigger>
+                  <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="available">Available</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="sold">Sold</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="lg:col-span-2">
+                <Select value={condition} onValueChange={(value) => setCondition(value as (typeof CONDITION_FILTERS)[number])}>
+                  <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light">
+                    <SelectValue placeholder="Condition" />
+                  </SelectTrigger>
+                  <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                    <SelectItem value="all">All Condition</SelectItem>
+                    <SelectItem value="excellent">Excellent</SelectItem>
+                    <SelectItem value="good">Good</SelectItem>
+                    <SelectItem value="fair">Fair</SelectItem>
+                    <SelectItem value="poor">Poor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="lg:col-span-2 grid grid-cols-2 gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  value={minPrice}
+                  onChange={(event) => setMinPrice(event.target.value)}
+                  placeholder="Min $"
+                  className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  value={maxPrice}
+                  onChange={(event) => setMaxPrice(event.target.value)}
+                  placeholder="Max $"
+                  className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light placeholder:text-vault-text-muted"
+                />
+              </div>
+
+              <div className="lg:col-span-2 flex gap-2">
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'newest' | 'price-low' | 'price-high')}>
+                  <SelectTrigger className="h-11 border-vault-gold/20 bg-vault-surface text-vault-text-light flex-1">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent className="border-vault-border bg-vault-surface-elevated text-vault-text-light">
+                    <SelectItem value="newest">Newest</SelectItem>
+                    <SelectItem value="price-low">Price: Low to High</SelectItem>
+                    <SelectItem value="price-high">Price: High to Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="h-11 px-3 border-vault-gold/20 text-vault-text-muted hover:text-vault-text-light hover:border-vault-gold/40"
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -237,6 +367,12 @@ function InventoryContent() {
                       {totalCount}
                     </span>{' '}
                     items
+                    {searchTerm.trim() && (
+                      <span>
+                        {' '}
+                        for <span className="text-vault-gold">&ldquo;{searchTerm.trim()}&rdquo;</span>
+                      </span>
+                    )}
                     {category !== 'All' && (
                       <span>
                         {' '}

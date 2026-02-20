@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import GoldTicker from './GoldTicker';
@@ -22,6 +22,22 @@ const NAV_LINKS = [
 export default function NavBar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const shouldHide = pathname === '/pitch';
+
+  const handleNavLinkClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href === '/?heroMode=appraisal&heroOpen=1' && pathname === '/') {
+      event.preventDefault();
+      window.dispatchEvent(
+        new CustomEvent('vault:open-chat', {
+          detail: {
+            mode: 'appraisal',
+            source: 'nav-appraise',
+            open: true,
+          },
+        }),
+      );
+    }
+  };
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -36,6 +52,10 @@ export default function NavBar() {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <nav className="sticky top-0 z-50 border-b backdrop-blur-md border-vault-border-accent" style={{ backgroundColor: 'var(--vault-nav-bg)' }}>
@@ -66,6 +86,7 @@ export default function NavBar() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={(event) => handleNavLinkClick(event, link.href)}
                   className={`
                     relative px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200 tracking-wide
                     ${isActive
@@ -130,6 +151,7 @@ export default function NavBar() {
                       <Link
                         key={link.href}
                         href={link.href}
+                        onClick={(event) => handleNavLinkClick(event, link.href)}
                         className={`
                           block px-4 py-3 rounded-lg text-base font-medium transition-colors
                           ${isActive

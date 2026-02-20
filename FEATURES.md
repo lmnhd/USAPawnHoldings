@@ -18,6 +18,10 @@
 8. [AI Agent Configuration](#8-ai-agent-configuration)
 9. [Data Management & Analytics](#9-data-management--analytics)
 10. [Security & Authentication](#10-security--authentication)
+11. [Additional Technical Features](#11-additional-technical-features)
+12. [Business Logic & Workflows](#12-business-logic--workflows)
+13. [Features Added Since v1.0](#13-features-added-since-v10)
+14. [Documentation Corrections (Code-Accurate)](#14-documentation-corrections-code-accurate)
 
 ---
 
@@ -83,7 +87,7 @@ The Owner Dashboard (`/dashboard`) is the central command center accessible from
 ## 2. AI-Powered Customer Features
 
 ### 2.1 AI Appraisal Engine (`/appraise`)
-The flagship feature - customers can get instant item valuations using AI vision.
+The flagship appraisal experience now runs through the Hero Chat appraisal flow on the home experience. The `/appraise` route redirects users into that guided flow.
 
 **Customer Capabilities**:
 - Upload multiple photos (up to 6) with custom labels (Front, Back, Detail, Serial/Hallmark, Clasp/Buckle, Scale Reference)
@@ -136,6 +140,10 @@ A floating chat bubble available on every page of the website.
 - Real-time AI responses using GPT-4o-mini
 - Full conversation history tracking
 - Mobile-optimized interface
+- Multi-mode conversation context (`general`, `appraisal`, `ops`) with route-aware defaults
+- Browser voice mode (WebRTC realtime) with seamless handoff back to text transcript
+- Dynamic in-chat form rendering (`request_form`) for multi-field workflows like scheduling
+- Structured image responses that can include inventory product cards and clickable detail dialogs
 
 **AI Capabilities**:
 - Answer questions about store hours, location, services
@@ -155,6 +163,8 @@ A floating chat bubble available on every page of the website.
 - Video embeds (YouTube TV ads)
 - Call-to-action buttons for appraisal
 - Store information and hours
+- Door QR auto-open signal support via `?source=door`
+- Hero mode query switching (`?heroMode=general|appraisal|ops&heroOpen=1`)
 
 #### Inventory Page (`/inventory`)
 - Browse all available items
@@ -163,6 +173,9 @@ A floating chat bubble available on every page of the website.
 - Item cards with images, descriptions, prices
 - Pagination for large inventories
 - "Interested? Chat with us" CTAs on every item
+- Advanced filtering for availability, condition, min/max price
+- Sort modes (`newest`, `price-low`, `price-high`)
+- Dynamic category count chips and mobile category picker
 
 #### Info Page (`/info`)
 - Educational content: "What is a Pawn Loan?"
@@ -175,6 +188,15 @@ A floating chat bubble available on every page of the website.
 - Category showcase with links to inventory
 - FAQ accordion with common questions
 - Store contact information
+
+#### Gold Page (`/gold`)
+- Dedicated long-form landing page for precious metal buying
+- Metal-specific sections (gold/silver/platinum/flatware)
+- Gold-focused conversion CTAs (appraisal + click-to-call)
+
+#### Media Page (`/media`)
+- Dedicated media center page with embedded TV/store videos
+- Conversion section with appraisal CTA, click-to-call, and directions link
 
 ---
 
@@ -588,7 +610,6 @@ Password-protected access to sensitive areas.
 **Protected Routes**:
 - `/dashboard` - Owner dashboard
 - `/staff` - Staff portal
-- All `/api/*` endpoints (API-level protection)
 
 **Demo Authentication**:
 - Single password: `12345` (configurable via ENV)
@@ -608,7 +629,6 @@ Password-protected access to sensitive areas.
 **Behavior**:
 - Checks `vault_auth` cookie on protected routes
 - Redirects to `/login` if missing/expired
-- Returns 401 for API requests without auth
 - Supports role-based access control
 
 ### 10.3 PIN Security
@@ -705,6 +725,60 @@ Automatic lead prioritization.
 
 ---
 
+## 13. Features Added Since v1.0
+
+### 13.1 Route & Experience Additions
+- **New public routes**: `/gold` and `/media` are now first-class public pages linked in primary navigation.
+- **Appraisal route behavior change**: `/appraise` redirects into Hero Chat appraisal mode instead of hosting a standalone page UI.
+- **Global theme switching**: dark/light theme toggle is available in nav (desktop + mobile) via `next-themes`.
+- **Enhanced SEO delivery**: root layout now injects rich JSON-LD schema (`PawnShop`, `FAQPage`, and offer metadata), and neighborhood pages are statically generated with dynamic metadata.
+
+### 13.2 Chat & Voice Capability Expansion
+- **Unified multimode chat UX**: one persistent widget supports `general`, `appraisal`, and `ops` conversation modes with route-aware defaults.
+- **Guided appraisal workflow in chat**: step-driven appraisal flow includes category selection, description capture, labeled multi-photo upload, progress state, and in-widget result cards.
+- **Voice in web chat**: browser voice sessions use OpenAI Realtime over WebRTC with transcript merge back into text history.
+- **Form-first workflow support**: AI can emit structured form specs and the frontend renders/handles dynamic forms for scheduling and data capture.
+- **Inventory-rich assistant replies**: inventory tool results can return attached image payloads and product data for interactive card dialogs.
+
+### 13.3 Inventory Intelligence & Staff Entry Improvements
+- **Hybrid inventory relevance engine**: inventory search now uses category aliases, keyword tokenization, fuzzy token coverage, and fallback keyword-only matching when strict category filtering returns zero.
+- **Tag governance system**: canonicalized tags, stop-word stripping, synonym normalization, and generated `searchable_tokens` improve search quality.
+- **AI-assisted item intake**: staff item entry can auto-evaluate first image (`/api/evaluate-item`) to prefill category/brand/description/condition/price/tags.
+- **Built-in photo tooling**: item entry supports both file upload and live camera capture.
+- **Background removal pipeline**: per-image remove.bg integration (`/api/image/remove-background`) with reversible original tracking in metadata.
+
+### 13.4 Conversations, Auditing, and Analytics Enhancements
+- **Unified conversation model**: channel logs normalize into customer-level groups and case groupings (appointment/appraisal/inventory/hours/general intent buckets).
+- **Cross-channel case timeline UI**: dashboard conversation review supports merged cases, per-conversation deletes, and detailed timeline views with media rendering.
+- **Voice booking audit trail**: voice scheduling writes dedicated audit conversation records/events for compliance review.
+- **Conversation-specific retrieval API**: `/api/conversations/[id]` fetches normalized individual records.
+
+### 13.5 Agent/Voice Runtime Enhancements
+- **Assembled voice prompt API**: `/api/agent-config/voice` dynamically composes voice prompts from chat base prompt + voice addendum/rules, including live-status guidance blocks.
+- **Realtime browser session minting**: `/api/realtime-session` issues ephemeral OpenAI Realtime credentials with server VAD and tool schema.
+- **Dedicated realtime voice server upgrades**:
+  - Twilio media stream bridge with interruption handling and mark queue control
+  - Live store-status tool execution
+  - Schedule tool execution with validation + audit persistence
+  - Health endpoints and remote prompt refresh caching
+
+### 13.6 Data & Operations Safety Enhancements
+- **Data management “nuclear reset”**: dashboard now supports both per-domain clears and all-domain wipe with staged confirmations/status.
+- **Admin force clock-out path**: dashboard force clock-out uses explicit admin override signaling and compliance flagging.
+- **Lead normalization improvements**: lead APIs normalize source/channel/contact method and support cursor pagination + date-range filtering.
+
+---
+
+## 14. Documentation Corrections (Code-Accurate)
+
+- **`/appraise` implementation**: currently redirects to home hero appraisal mode; it is no longer a dedicated standalone appraisal page component.
+- **Middleware/API scope**: middleware protects `/dashboard` and `/staff` paths (with `/staff/clockin` token-gated exception), but does **not** enforce auth on all `/api/*` routes.
+- **Auth endpoint shape**: auth actions are consolidated in `/api/auth` (`login`, `logout`, `check`) with signed cookie payloads, rather than separate route files.
+- **Conversation architecture**: conversation storage is no longer only flat transcript retrieval; it now includes normalized grouping by customer + case.
+- **Voice channel architecture**: beyond Twilio voice webhooks, browser-native realtime voice sessions are implemented and share tooling/context with chat.
+
+---
+
 ## Summary
 
 **The Vault** provides USA Pawn Holdings with:
@@ -717,12 +791,12 @@ Automatic lead prioritization.
 6. **Operational Efficiency** - Automated scheduling, inventory management, and reporting
 7. **Scalability** - Architecture supports multiple locations (ready for behavioral health clinic expansion)
 
-**Total Feature Count**: 60+ distinct features across 10 major categories
+**Total Feature Count**: 80+ distinct features across 14 major categories
 
 **ROI Projection**: $101,400 annual value recovery vs. $4,488 annual cost = 22x ROI
 
 ---
 
-*Document Version: 1.0*
-*Date: February 2026*
+*Document Version: 1.1*
+*Date: February 2026 (updated)*
 *System: "The Vault" - USA Pawn Holdings Management Platform*

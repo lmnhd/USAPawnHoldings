@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { tokenizeSearchInput } from '@/lib/tag-governance';
 
 /* ──────────────────────────────────────────────────────
    useVoiceChat — Browser → OpenAI Realtime API via WebRTC
@@ -75,6 +76,18 @@ const INVENTORY_NAVIGATION_TERMS = new Set([
   'options',
 ]);
 
+const INVENTORY_CATEGORY_CANONICAL = new Set([
+  'jewelry',
+  'watch',
+  'watches',
+  'electronics',
+  'tools',
+  'firearms',
+  'musical',
+  'sporting',
+  'collectibles',
+]);
+
 function normalizeInventoryTerm(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
 }
@@ -89,6 +102,39 @@ function isNavigationInventoryKeyword(value: unknown): boolean {
   const tokens = compact.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return false;
   return tokens.length <= 5 && tokens.every((token) => INVENTORY_NAVIGATION_TERMS.has(token));
+}
+
+function isNavigationInventoryUtterance(value: unknown): boolean {
+  const text = normalizeInventoryTerm(value);
+  if (!text) return false;
+
+  return /\b(next|another|other one|one more|different one|show (?:me )?next|go back|previous|prev|back to the other)\b/.test(text);
+}
+
+function normalizeInventoryCategoryInput(
+  rawCategory: string,
+  rawKeyword: string,
+  priorCategory?: string,
+): string {
+  const categoryTokens = tokenizeSearchInput(rawCategory);
+  const keywordTokens = tokenizeSearchInput(rawKeyword);
+
+  const categoryFromRaw = categoryTokens[0] ?? rawCategory;
+  const categoryFromKeyword = keywordTokens.find((token) => INVENTORY_CATEGORY_CANONICAL.has(token)) ?? '';
+
+  if (categoryFromRaw && INVENTORY_CATEGORY_CANONICAL.has(categoryFromRaw)) {
+    return categoryFromRaw;
+  }
+
+  if (categoryFromKeyword) {
+    return categoryFromKeyword;
+  }
+
+  if (priorCategory && INVENTORY_CATEGORY_CANONICAL.has(priorCategory)) {
+    return priorCategory;
+  }
+
+  return categoryFromRaw;
 }
 
 function buildInventoryResultKey(topMatches: Array<Record<string, unknown>>): string {
@@ -133,6 +179,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
   // Track inventory image index per query so repeated "next" requests can rotate images
   const inventoryImageCursorRef = useRef<Map<string, number>>(new Map());
   const lastInventoryQueryRef = useRef<{ category: string; keyword: string } | null>(null);
+  const lastUserUtteranceRef = useRef<string>('');
   const formRequestCountRef = useRef(0);
   const lastFormRequestAtRef = useRef<number | null>(null);
   const executeToolCallRef = useRef<(callId: string, name: string, argsJson: string) => void>(() => {});
@@ -175,6 +222,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
     handledToolCallsRef.current.clear();
     inventoryImageCursorRef.current.clear();
     lastInventoryQueryRef.current = null;
+    lastUserUtteranceRef.current = '';
   }, []);
 
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
@@ -203,6 +251,7 @@ export function useVoiceChat(): UseVoiceChatReturn {
         // ── Transcripts: what the user said ──
         case 'conversation.item.input_audio_transcription.completed':
           if (msg.transcript?.trim()) {
+            lastUserUtteranceRef.current = msg.transcript.trim();
             setTranscripts((prev) => [
               ...prev,
               {
@@ -401,11 +450,16 @@ export function useVoiceChat(): UseVoiceChatReturn {
         case 'check_inventory': {
           const rawCategory = normalizeInventoryTerm(args.category);
           const rawKeyword = normalizeInventoryTerm(args.keyword);
-          const navigationRequest = isNavigationInventoryKeyword(rawKeyword);
+          const userNavigationIntent = isNavigationInventoryUtterance(lastUserUtteranceRef.current);
+          const navigationRequest = isNavigationInventoryKeyword(rawKeyword) || userNavigationIntent;
 
-          const effectiveCategory = rawCategory || lastInventoryQueryRef.current?.category || '';
+          const priorQuery = lastInventoryQueryRef.current;
+          const normalizedCategory = normalizeInventoryCategoryInput(rawCategory, rawKeyword, priorQuery?.category);
+          const effectiveCategory = navigationRequest
+            ? (priorQuery?.category || normalizedCategory)
+            : (normalizedCategory || priorQuery?.category || '');
           const effectiveKeyword = navigationRequest
-            ? (lastInventoryQueryRef.current?.keyword || '')
+            ? (priorQuery?.keyword || rawKeyword)
             : rawKeyword;
 
           if (effectiveCategory || effectiveKeyword) {

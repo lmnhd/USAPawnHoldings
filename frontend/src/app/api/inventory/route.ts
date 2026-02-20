@@ -98,9 +98,17 @@ export async function GET(request: NextRequest) {
     const category = params.get('category')?.toLowerCase() ?? null;
     const keyword = params.get('keyword')?.toLowerCase() ?? null;
     const status = params.get('status')?.toLowerCase() ?? null;
-    const limit = Math.max(1, Math.min(Number(params.get('limit') ?? '20'), 100));
+    const condition = params.get('condition')?.toLowerCase() ?? null;
+    const minPriceParam = params.get('min_price');
+    const maxPriceParam = params.get('max_price');
+    const sort = params.get('sort')?.toLowerCase() ?? 'newest';
+    const limit = Math.max(1, Math.min(Number(params.get('limit') ?? '20'), 1000));
     const keywordTokens = tokenizeSearchInput(keyword ?? '');
     const categoryCandidates = resolveCategoryCandidates(category ?? '', keywordTokens);
+    const minPrice = minPriceParam != null && minPriceParam.trim().length > 0 ? Number(minPriceParam) : null;
+    const maxPrice = maxPriceParam != null && maxPriceParam.trim().length > 0 ? Number(maxPriceParam) : null;
+    const hasMinPrice = minPrice != null && Number.isFinite(minPrice) && minPrice >= 0;
+    const hasMaxPrice = maxPrice != null && Number.isFinite(maxPrice) && maxPrice >= 0;
 
     let items = await scanInventory();
     
@@ -123,6 +131,9 @@ export async function GET(request: NextRequest) {
     if (status) {
       items = items.filter((item) => String(item.status).toLowerCase() === status);
     }
+    if (condition) {
+      items = items.filter((item) => String(item.condition ?? '').toLowerCase() === condition);
+    }
     if (keyword) {
       items = items.filter((item) => {
         const blob = `${item.brand ?? ''} ${item.description ?? ''} ${item.category ?? ''} ${(item.tags ?? []).join(' ')} ${(item.searchable_tokens ?? []).join(' ')}`.toLowerCase();
@@ -133,7 +144,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (hasMinPrice) {
+      items = items.filter((item) => Number(item.price ?? 0) >= (minPrice as number));
+    }
+    if (hasMaxPrice) {
+      items = items.filter((item) => Number(item.price ?? 0) <= (maxPrice as number));
+    }
+
+    if (sort === 'price-low') {
+      items.sort((a, b) => Number(a.price ?? 0) - Number(b.price ?? 0));
+    } else if (sort === 'price-high') {
+      items.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    } else {
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
     const limited = items.slice(0, limit);
 
     return NextResponse.json({

@@ -395,6 +395,7 @@ function formatInventoryResponseWithSelection(
 
   const selectedIndex = clampInventoryIndex(requestedIndex, topMatches.length);
   const selected = topMatches[selectedIndex];
+  const selectionPrefix = count > 1 ? `Showing #${selectedIndex + 1} of ${topMatches.length}. ` : "";
   const title = getItemShortTitle(selected);
   const brief = getItemBriefDescription(selected);
   const questionIntent = inferInventoryQuestionIntent(lastUserText);
@@ -437,12 +438,12 @@ function formatInventoryResponseWithSelection(
 
   if (count > 1) {
     if (selectedIndex >= topMatches.length - 1) {
-      return `${lead} Want to go back to the other one?`;
+      return `${selectionPrefix}${lead} Want to go back to the other one?`;
     }
-    return `${lead} Want to see another one?`;
+    return `${selectionPrefix}${lead} Want to see another one?`;
   }
 
-  return lead;
+  return `${selectionPrefix}${lead}`;
 }
 
 function formatInventoryImageReply(
@@ -457,6 +458,7 @@ function formatInventoryImageReply(
   const selectedIndex = clampInventoryIndex(requestedIndex, topMatches.length);
   const selected = topMatches[selectedIndex];
   const count = Number(result.count ?? topMatches.length);
+  const selectionPrefix = count > 1 ? `Showing #${selectedIndex + 1} of ${topMatches.length}. ` : "";
   const title = getItemShortTitle(selected);
   const brief = getItemBriefDescription(selected, detailLevel === "detailed" ? undefined : undefined);
   const questionIntent = inferInventoryQuestionIntent(lastUserText);
@@ -473,57 +475,57 @@ function formatInventoryImageReply(
 
   if (questionIntent === "price") {
     if (numericPrice != null) {
-      return `I found ${title} — it’s tagged at $${Math.round(numericPrice)}.${questionTail}`;
+      return `${selectionPrefix}I found ${title} — it’s tagged at $${Math.round(numericPrice)}.${questionTail}`;
     }
-    return `I found ${title} — I don’t have a tagged price listed yet, but staff can quote it quickly.${questionTail}`;
+    return `${selectionPrefix}I found ${title} — I don’t have a tagged price listed yet, but staff can quote it quickly.${questionTail}`;
   }
 
   if (questionIntent === "condition") {
     if (condition) {
-      return `I found ${title} — condition is listed as ${condition.toLowerCase()}.${questionTail}`;
+      return `${selectionPrefix}I found ${title} — condition is listed as ${condition.toLowerCase()}.${questionTail}`;
     }
-    return `I found ${title} — condition isn’t listed, but I can have staff verify it for you.${questionTail}`;
+    return `${selectionPrefix}I found ${title} — condition isn’t listed, but I can have staff verify it for you.${questionTail}`;
   }
 
   if (questionIntent === "brand") {
     if (brand) {
-      return `I found ${title} — brand is ${brand}.${questionTail}`;
+      return `${selectionPrefix}I found ${title} — brand is ${brand}.${questionTail}`;
     }
-    return `I found ${title} — brand isn’t explicitly listed in this record.${questionTail}`;
+    return `${selectionPrefix}I found ${title} — brand isn’t explicitly listed in this record.${questionTail}`;
   }
 
   if (questionIntent === "model") {
     if (model) {
-      return `I found ${title} — model is ${model}.${questionTail}`;
+      return `${selectionPrefix}I found ${title} — model is ${model}.${questionTail}`;
     }
-    return `I found ${title} — model isn’t explicitly listed in this record.${questionTail}`;
+    return `${selectionPrefix}I found ${title} — model isn’t explicitly listed in this record.${questionTail}`;
   }
 
   if (questionIntent === "availability") {
-    return `I found ${title} — it shows in current inventory.${questionTail}`;
+    return `${selectionPrefix}I found ${title} — it shows in current inventory.${questionTail}`;
   }
 
   if (detailLevel === "detailed") {
     const detailTail = getItemDetailTail(selected);
     const briefSentence = brief ? ensureTerminalPunctuation(brief) : "";
     if (brief && detailTail) {
-      return `I found ${title} — ${briefSentence} ${detailTail}.${questionTail}`;
+      return `${selectionPrefix}I found ${title} — ${briefSentence} ${detailTail}.${questionTail}`;
     }
     if (brief) {
-      return `I found ${title} — ${briefSentence}${questionTail}`;
+      return `${selectionPrefix}I found ${title} — ${briefSentence}${questionTail}`;
     }
     if (detailTail) {
-      return `I found ${title}; ${detailTail}.${questionTail}`;
+      return `${selectionPrefix}I found ${title}; ${detailTail}.${questionTail}`;
     }
-    return `I found ${title}.${questionTail}`;
+    return `${selectionPrefix}I found ${title}.${questionTail}`;
   }
 
   if (brief) {
     const briefSentence = ensureTerminalPunctuation(brief);
-    return `I found ${title} — ${briefSentence}${questionTail}`;
+    return `${selectionPrefix}I found ${title} — ${briefSentence}${questionTail}`;
   }
 
-  return `I found ${title}.${questionTail}`;
+  return `${selectionPrefix}I found ${title}.${questionTail}`;
 }
 
 async function handleToolCall(toolCall: ToolCall, req: NextRequest) {

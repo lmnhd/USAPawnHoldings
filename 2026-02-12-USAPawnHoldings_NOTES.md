@@ -3,6 +3,12 @@
 3. We need to think BEYOND her side business and show that we can be useful with her MAIN business as well - without acutally mentioning it!
 
 
+**THINGS USA PAWN SEEMS TO BE MISSING**
+ - Customer facing realtime online inventory system
+ - Online Appraisals (great for locking in after hour customers)
+ - After hours lead acquisition (prevent customer drift)
+
+
 
 How about a system for entering new items into inventory using a phone, take image and give the AI any relevant info and it catalogues and indexes the item, complete with product description, SkU, other meta - and updates the 'Products' page dynamically!
 

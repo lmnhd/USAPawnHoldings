@@ -11,77 +11,77 @@ const galleryImages = [
   {
     title: 'USA Pawn Store Front',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic2.jpg',
+    thumbnail: '/images/usa_pawn_store_front.jpg',
   },
   {
     title: 'Jewelry Collection',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic3.jpg',
+    thumbnail: '/images/usa_pawn_jewelry.jpg',
   },
   {
     title: 'Gold & Precious Metals',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic4.jpg',
+    thumbnail: '/images/usa_pawn_gold.jpg',
   },
   {
     title: 'Electronics & Tools',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic5.jpg',
+    thumbnail: '/images/usa_pawn_electronics_1.jpg',
   },
   {
     title: 'Quality Merchandise',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic6.jpg',
+    thumbnail: '/images/usa_pawn_game_consoles.jpg',
   },
   {
     title: 'Expert Appraisals',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic7.jpg',
+    thumbnail: '/images/usa_pawn_computer_accesories.jpg',
   },
   {
     title: 'Visit Our Store',
     link: '/info',
-    thumbnail: '/orignal/gallery/pic2.jpg',
+    thumbnail: '/images/usa_pawn_videos.jpg',
   },
   {
     title: 'Trusted Service',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic3.jpg',
+    thumbnail: '/images/usa_pawn_great_service.jpg',
   },
   {
     title: 'Fair Prices',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic4.jpg',
+    thumbnail: '/images/usa_pawn_great_prices.jpg',
   },
   {
     title: 'Fast Cash',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic5.jpg',
+    thumbnail: '/images/usa_pawn_firearms.jpg',
   },
   {
     title: 'No Hassle',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic6.jpg',
+    thumbnail: '/images/usa_pawn_musical_instruments.jpg',
   },
   {
     title: 'Jacksonville Trusted',
     link: '/info',
-    thumbnail: '/orignal/gallery/pic7.jpg',
+    thumbnail: '/images/usa_pawn_power_tools.jpg',
   },
   {
     title: 'Premium Items',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic2.jpg',
+    thumbnail: '/images/usa_pawn_store_front.jpg',
   },
   {
     title: 'Best Deals',
     link: '/inventory',
-    thumbnail: '/orignal/gallery/pic3.jpg',
+    thumbnail: '/images/usa_pawn_jewelry.jpg',
   },
   {
     title: 'Quality Guaranteed',
     link: '/appraise',
-    thumbnail: '/orignal/gallery/pic4.jpg',
+    thumbnail: '/images/usa_pawn_gold.jpg',
   },
 ]
 

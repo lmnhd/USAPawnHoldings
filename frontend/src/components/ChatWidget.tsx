@@ -44,6 +44,12 @@ type Message = {
 
 type ChatMode = 'general' | 'appraisal' | 'ops';
 
+type VaultOpenChatDetail = {
+  mode?: ChatMode;
+  source?: string;
+  open?: boolean;
+};
+
 type ModeStore = Record<ChatMode, Message[]>;
 type ConversationStore = Record<ChatMode, string | null>;
 
@@ -80,7 +86,7 @@ const APPRAISAL_CATEGORIES = [
 
 const PHOTO_LABELS = ['Front', 'Back', 'Detail', 'Serial/Hallmark', 'Clasp/Buckle', 'Scale Reference'] as const;
 const HERO_WORD_COLORS = ['text-vault-red', 'text-white', 'text-vault-gold dark:text-[#5BA0E8]'] as const;
-const HERO_TYPEWRITER_MAX_CHARS = 100;
+const HERO_TYPEWRITER_MAX_CHARS = 30;
 const MODE_META: Record<ChatMode, { label: string; icon: string; subtitle: string }> = {
   general: {
     label: 'General',
@@ -209,6 +215,8 @@ export default function ChatWidget() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const shouldHide = pathname === '/pitch';
+
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<ChatMode>('general');
   const [messagesByMode, setMessagesByMode] = useState<ModeStore>({
@@ -243,6 +251,8 @@ export default function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const quickImageInputRef = useRef<HTMLInputElement>(null);
   const appraisalImageInputRef = useRef<HTMLInputElement>(null);
+  const handledAutoVoiceRequestRef = useRef<string | null>(null);
+  const hasPlayedGeneralIntroTypewriterRef = useRef(false);
 
   const voice = useVoiceChat();
 
@@ -374,18 +384,21 @@ export default function ChatWidget() {
   }, []);
 
   useEffect(() => {
+    if (searchParams.get('heroOpen') === '1') {
+      setOpen(true);
+    }
+
     if (pathname === '/') {
       const requested = searchParams.get('heroMode');
-      const requestedMode = requested === 'appraisal' || requested === 'ops' || requested === 'general'
+      const requestedMode = requested === 'appraisal' || requested === 'ops' || requested === 'general' || requested === 'voice'
         ? requested
         : 'general';
-      if (!opsAllowed && requestedMode === 'ops') {
+      if (requestedMode === 'voice') {
+        setMode('general');
+      } else if (!opsAllowed && requestedMode === 'ops') {
         setMode('general');
       } else {
         setMode(requestedMode);
-      }
-      if (searchParams.get('heroOpen') === '1') {
-        setOpen(true);
       }
       return;
     }
@@ -417,6 +430,26 @@ export default function ChatWidget() {
       return () => window.clearTimeout(timer);
     }
   }, [open, mode]);
+
+  useEffect(() => {
+    const handleVaultOpenChat = (event: Event) => {
+      const detail = (event as CustomEvent<VaultOpenChatDetail>).detail;
+      const requestedMode = detail?.mode;
+
+      if (requestedMode === 'ops' && !opsAllowed) {
+        setMode('general');
+      } else if (requestedMode === 'general' || requestedMode === 'appraisal' || requestedMode === 'ops') {
+        setMode(requestedMode);
+      }
+
+      setOpen(detail?.open ?? true);
+    };
+
+    window.addEventListener('vault:open-chat', handleVaultOpenChat as EventListener);
+    return () => {
+      window.removeEventListener('vault:open-chat', handleVaultOpenChat as EventListener);
+    };
+  }, [opsAllowed]);
 
   const sendChatMessage = useCallback(
     async (content: string, imageUrl?: string) => {
@@ -820,29 +853,31 @@ export default function ChatWidget() {
     if (!voiceMode) return latestAssistantMessage?.content;
 
     const latestVoiceText = latestVoiceAssistant?.text?.trim();
-    const latestTextMessage = latestAssistantMessage?.content?.trim();
-    const latestVoiceTs = latestVoiceAssistant?.timestamp ?? 0;
-    const latestTextTs = latestAssistantMessage?.id ?? 0;
-
-    if (latestTextMessage && latestTextTs >= latestVoiceTs) {
-      return latestTextMessage;
-    }
-
-    return latestVoiceText || latestTextMessage;
-  }, [voiceMode, latestVoiceAssistant?.text, latestVoiceAssistant?.timestamp, latestAssistantMessage?.content, latestAssistantMessage?.id]);
+    return latestVoiceText;
+  }, [voiceMode, latestVoiceAssistant?.text, latestAssistantMessage?.content]);
   const heroStatement = useMemo(
     () => buildHeroHeadline(rawHeroStatement, voiceLoadingText, { preserveFullLead: true }),
     [rawHeroStatement, voiceLoadingText],
   );
-  const heroResponseKey = useMemo(
+  const heroMessageKey = useMemo(
     () => (voiceMode
-      ? `voice-${mode}-${voice.status}-${latestVoiceAssistant?.timestamp ?? 'seed'}`
+      ? `voice-${mode}-${latestVoiceAssistant?.timestamp ?? 'seed'}`
       : `text-${mode}-${latestAssistantMessage?.id ?? 'seed'}`),
-    [voiceMode, mode, voice.status, latestVoiceAssistant?.timestamp, latestAssistantMessage?.id],
+    [voiceMode, mode, latestVoiceAssistant?.timestamp, latestAssistantMessage?.id],
+  );
+  const isOpsMode = mode === 'ops';
+  const forceGeneralIntroTypewriter = useMemo(
+    () => (
+      mode === 'general'
+      && !voiceMode
+      && Boolean(latestAssistantMessage?.isWelcome)
+      && !hasPlayedGeneralIntroTypewriterRef.current
+    ),
+    [mode, voiceMode, latestAssistantMessage?.isWelcome],
   );
   const shouldTypewriter = useMemo(
-    () => heroStatement.length <= HERO_TYPEWRITER_MAX_CHARS,
-    [heroStatement.length],
+    () => forceGeneralIntroTypewriter || (!isOpsMode && heroStatement.length <= HERO_TYPEWRITER_MAX_CHARS),
+    [forceGeneralIntroTypewriter, isOpsMode, heroStatement.length],
   );
   const [typedHeroLength, setTypedHeroLength] = useState(0);
   const [heroVisible, setHeroVisible] = useState(true);
@@ -862,9 +897,18 @@ export default function ChatWidget() {
 
     setTypedHeroLength(heroStatement.length);
     setHeroVisible(false);
-    const fadeId = window.setTimeout(() => setHeroVisible(true), 24);
-    return () => window.clearTimeout(fadeId);
-  }, [heroResponseKey, open, shouldTypewriter, heroStatement.length]);
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        setHeroVisible(true);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
+  }, [heroMessageKey, open, shouldTypewriter, heroStatement.length]);
 
   useEffect(() => {
     if (!shouldTypewriter) return;
@@ -880,20 +924,32 @@ export default function ChatWidget() {
 
     const remaining = heroStatement.length - typedHeroLength;
     const progress = heroStatement.length > 0 ? typedHeroLength / heroStatement.length : 1;
-    const dynamicDelay = remaining <= 12
-      ? 20
-      : progress < 0.45
-        ? 8
-        : progress < 0.85
-          ? 11
-          : 15;
+    const dynamicDelay = forceGeneralIntroTypewriter
+      ? 3
+      : remaining <= 12
+        ? 20
+        : progress < 0.45
+          ? 8
+          : progress < 0.85
+            ? 11
+            : 15;
+    const stepSize = forceGeneralIntroTypewriter ? 2 : 1;
 
     const timeoutId = window.setTimeout(() => {
-      setTypedHeroLength((current) => Math.min(current + 1, heroStatement.length));
+      setTypedHeroLength((current) => Math.min(current + stepSize, heroStatement.length));
     }, dynamicDelay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [heroStatement, typedHeroLength, open, shouldTypewriter]);
+  }, [heroStatement, typedHeroLength, open, shouldTypewriter, forceGeneralIntroTypewriter]);
+
+  useEffect(() => {
+    if (!forceGeneralIntroTypewriter) return;
+    if (!open) return;
+    if (!heroStatement) return;
+    if (typedHeroLength < heroStatement.length) return;
+
+    hasPlayedGeneralIntroTypewriterRef.current = true;
+  }, [forceGeneralIntroTypewriter, open, heroStatement, typedHeroLength]);
 
   const visibleHeroStatement = useMemo(
     () => (shouldTypewriter ? heroStatement.slice(0, typedHeroLength) : heroStatement),
@@ -904,6 +960,14 @@ export default function ChatWidget() {
     [latestAssistantMessage?.content],
   );
   const typedHeroTokens = useMemo(() => {
+    if (isOpsMode) {
+      return [
+        <span key="ops-hero" className="text-white">
+          {visibleHeroStatement}
+        </span>,
+      ];
+    }
+
     let wordIndex = 0;
     return visibleHeroStatement.split(/(\s+)/).map((token, index) => {
       if (!token) return null;
@@ -919,7 +983,7 @@ export default function ChatWidget() {
         </span>
       );
     });
-  }, [visibleHeroStatement]);
+  }, [visibleHeroStatement, isOpsMode]);
 
   const heroLength = visibleHeroStatement.length;
   const heroScale = useMemo(() => {
@@ -947,7 +1011,14 @@ export default function ChatWidget() {
         fontSize: 'clamp(1.2rem, 4.2vw, 2.8rem)',
         lineHeight: 1.18,
       }
-    : heroScale;
+    : isOpsMode
+      ? {
+          ...heroScale,
+          fontSize: 'clamp(1.55rem, 4.9vw, 5.3rem)',
+          lineHeight: 1.06,
+        }
+      : heroScale;
+  const heroOpacityTransition = shouldTypewriter ? 'opacity 180ms ease' : 'opacity 320ms ease';
 
   const toggleVoiceMode = useCallback(async () => {
     if (mode === 'appraisal') return;
@@ -973,11 +1044,32 @@ export default function ChatWidget() {
   }, [mode, voiceMode, voice, mergeVoiceTranscriptsIntoChat, conversationIds, pathname, autoMode, currentMessages]);
 
   useEffect(() => {
+    const requestedMode = searchParams.get('heroMode');
+    const requestedOpen = searchParams.get('heroOpen');
+
+    if (pathname !== '/' || requestedMode !== 'voice' || requestedOpen !== '1') {
+      handledAutoVoiceRequestRef.current = null;
+      return;
+    }
+
+    const requestKey = `${pathname}|${requestedMode}|${requestedOpen}`;
+    if (handledAutoVoiceRequestRef.current === requestKey) return;
+    if (voiceMode || voice.status === 'connecting' || voice.status === 'connected') return;
+
+    handledAutoVoiceRequestRef.current = requestKey;
+    void toggleVoiceMode();
+  }, [pathname, searchParams, voiceMode, voice.status, toggleVoiceMode]);
+
+  useEffect(() => {
     if (voiceMode && voice.status === 'error') {
       setVoiceMode(false);
       mergeVoiceTranscriptsIntoChat();
     }
   }, [voiceMode, voice.status, mergeVoiceTranscriptsIntoChat]);
+
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <Drawer
@@ -991,21 +1083,26 @@ export default function ChatWidget() {
           type="button"
           className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center overflow-visible rounded-full border border-vault-gold/35 bg-vault-black/90 shadow-[0_0_22px_rgba(230,0,0,0.75),0_0_50px_rgba(204,0,0,0.5),0_10px_34px_rgba(0,0,0,0.55)]"
           aria-label="Open hero chat"
+          onClick={() => {
+            if (pathname === '/') {
+              setMode('general');
+            }
+          }}
           animate={{ y: [0, -8, 0], x: [0, -4, 0], rotate: [0, -2, 0, 2, 0] }}
           transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <motion.span
-            className="pointer-events-none absolute -inset-4 rounded-full bg-vault-red/75 blur-2xl"
+            className="absolute rounded-full pointer-events-none -inset-4 bg-vault-red/75 blur-2xl"
             animate={{ opacity: [0.55, 0.95, 0.55], scale: [0.96, 1.12, 0.96] }}
             transition={{ duration: 1.9, repeat: Infinity, ease: 'easeInOut' }}
           />
           <motion.span
-            className="pointer-events-none absolute -inset-2 rounded-full border border-vault-red/60"
+            className="absolute border rounded-full pointer-events-none -inset-2 border-vault-red/60"
             animate={{ opacity: [0.4, 0.9, 0.4], scale: [1, 1.1, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
           />
           <motion.span
-            className="absolute inset-0 rounded-full border border-vault-gold/30"
+            className="absolute inset-0 border rounded-full border-vault-gold/30"
             animate={{ scale: [1, 1.15, 1], opacity: [0.45, 0.05, 0.45] }}
             transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
           />
@@ -1014,7 +1111,7 @@ export default function ChatWidget() {
             alt="Open Merrill Vault Assistant"
             width={34}
             height={34}
-            className="relative z-10 h-9 w-9 object-contain"
+            className="relative z-10 object-contain h-9 w-9"
           />
         </motion.button>
       </DrawerTrigger>
@@ -1023,7 +1120,7 @@ export default function ChatWidget() {
         direction="bottom"
         className="chat-widget-surface h-[92vh] w-full max-w-none rounded-t-2xl border-vault-border-accent bg-vault-surface-elevated p-0 text-vault-text-light md:h-[94vh]"
       >
-        <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 pointer-events-none">
           <Image
             src="/images/merril_vault.png"
             alt="Merrill Vault Assistant background"
@@ -1050,11 +1147,11 @@ export default function ChatWidget() {
           </div>
         </div>
 
-        <DrawerHeader className="relative z-10 border-b border-vault-border-accent bg-vault-black/55 px-4 py-3 text-left backdrop-blur-sm">
+        <DrawerHeader className="relative z-10 px-4 py-3 text-left border-b border-vault-border-accent bg-vault-black/55 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <DrawerTitle className="font-display text-base text-vault-text-light">{CHAT_NAME}</DrawerTitle>
-              <DrawerDescription className="font-body text-xs text-vault-text-muted">
+              <DrawerTitle className="text-base font-display text-vault-text-light">{CHAT_NAME}</DrawerTitle>
+              <DrawerDescription className="text-xs font-body text-vault-text-muted">
                 {voiceMode
                   ? (voice.status === 'connecting'
                     ? 'Retrieving voice agent...'
@@ -1072,7 +1169,7 @@ export default function ChatWidget() {
                   className={`h-8 w-8 ${voiceMode ? 'text-vault-gold' : 'text-vault-text-light'} hover:bg-vault-surface`}
                   aria-label={voiceMode ? 'Switch to text mode' : 'Switch to voice mode'}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0M12 18v3m-4 0h8" />
                   </svg>
@@ -1082,7 +1179,7 @@ export default function ChatWidget() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-vault-text-light hover:bg-vault-surface"
+                  className="w-8 h-8 text-vault-text-light hover:bg-vault-surface"
                   onClick={() => {
                     if (voiceMode) {
                       voice.disconnect();
@@ -1091,7 +1188,7 @@ export default function ChatWidget() {
                     }
                   }}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </Button>
@@ -1100,7 +1197,7 @@ export default function ChatWidget() {
           </div>
 
           <div
-            className="mt-3 grid gap-1 rounded-lg border border-vault-border bg-vault-surface/80 p-1 backdrop-blur-sm"
+            className="grid gap-1 p-1 mt-3 border rounded-lg border-vault-border bg-vault-surface/80 backdrop-blur-sm"
             style={{ gridTemplateColumns: `repeat(${visibleModes.length}, minmax(0, 1fr))` }}
           >
             {visibleModes.map((modeOption) => {
@@ -1125,9 +1222,9 @@ export default function ChatWidget() {
           </div>
 
           {mode === 'appraisal' && (
-            <div className="mt-3 rounded-lg border border-vault-border bg-vault-surface/80 p-3 backdrop-blur-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-vault-text-muted">
+            <div className="p-3 mt-3 border rounded-lg border-vault-border bg-vault-surface/80 backdrop-blur-sm">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold tracking-wide uppercase text-vault-text-muted">
                   Guided Progress
                 </p>
                 <p className="text-xs text-vault-text-light">{Math.round(appraisalProgress)}%</p>
@@ -1139,7 +1236,7 @@ export default function ChatWidget() {
 
         <div className={`relative z-10 flex-1 overflow-hidden ${isAppraisalResultView ? 'px-2 py-2 sm:px-4 sm:py-4' : 'px-5 py-6 md:px-10 md:py-10'}`}>
           {isAppraisalResultView && (
-            <div className="pointer-events-none absolute inset-0 bg-vault-black/68 backdrop-blur-2xl" />
+            <div className="absolute inset-0 pointer-events-none bg-vault-black/68 backdrop-blur-2xl" />
           )}
           {!isAppraisalResultView && (
             <>
@@ -1161,19 +1258,19 @@ export default function ChatWidget() {
             </>
           )}
 
-          <div className="relative flex h-full flex-col text-center">
+          <div className="relative flex flex-col h-full text-center">
             {isAppraisalResultView ? (
               <div className="mx-auto flex h-full w-full max-w-5xl min-h-0 flex-col overflow-hidden rounded-2xl border border-vault-gold/35 bg-gradient-to-b from-vault-surface-elevated/95 via-vault-surface/95 to-vault-black/90 p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.48)] sm:p-6">
-                <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-vault-gold">AI Appraisal Result</p>
-                    <h3 className="mt-2 font-display text-2xl font-bold leading-tight text-vault-text-light sm:text-3xl">Appraisal complete. Your result card</h3>
+                    <h3 className="mt-2 text-2xl font-bold leading-tight font-display text-vault-text-light sm:text-3xl">Appraisal complete. Your result card</h3>
                   </div>
                   <span className="rounded-full bg-vault-success/20 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wide text-vault-success">Completed</span>
                 </div>
 
-                <Tabs defaultValue="summary" className="mt-1 w-full">
-                  <TabsList className="grid h-auto w-full grid-cols-2 bg-vault-black/35 p-1">
+                <Tabs defaultValue="summary" className="w-full mt-1">
+                  <TabsList className="grid w-full h-auto grid-cols-2 p-1 bg-vault-black/35">
                     <TabsTrigger
                       value="summary"
                       className="font-body text-xs font-semibold uppercase tracking-[0.12em] text-vault-text-muted data-[state=active]:bg-vault-red data-[state=active]:text-white"
@@ -1189,25 +1286,25 @@ export default function ChatWidget() {
                   </TabsList>
 
                   <TabsContent value="summary" className="space-y-3">
-                    <div className="rounded-xl border border-vault-border bg-vault-black/35 p-4">
+                    <div className="p-4 border rounded-xl border-vault-border bg-vault-black/35">
                       <p className="text-xs uppercase tracking-[0.12em] text-vault-text-muted">Estimated Range</p>
                       <p className="mt-2 font-mono text-4xl font-bold text-vault-gold sm:text-5xl">${appraisal.result?.valueRange ?? 'N/A'}</p>
                       <p className="mt-2 text-sm text-vault-text-muted">Midpoint estimate: <span className="font-mono text-base font-semibold text-vault-text-light">${appraisal.result?.estimatedValue?.toLocaleString?.() ?? 'N/A'}</span></p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                      <div className="rounded-lg border border-vault-border bg-vault-surface/65 p-3">
+                      <div className="p-3 border rounded-lg border-vault-border bg-vault-surface/65">
                         <p className="text-[10px] uppercase tracking-wide text-vault-text-muted">Category</p>
                         <p className="mt-1 text-sm font-semibold text-vault-text-light sm:text-base">{appraisal.category}</p>
                       </div>
-                      <div className="rounded-lg border border-vault-border bg-vault-surface/65 p-3">
+                      <div className="p-3 border rounded-lg border-vault-border bg-vault-surface/65">
                         <p className="text-[10px] uppercase tracking-wide text-vault-text-muted">Photos Used</p>
                         <p className="mt-1 text-sm font-semibold text-vault-text-light sm:text-base">{appraisal.photos.length}</p>
                       </div>
                     </div>
 
                     {appraisal.result?.nextSteps && (
-                      <div className="rounded-lg border border-vault-red/25 bg-vault-red/10 p-3">
+                      <div className="p-3 border rounded-lg border-vault-red/25 bg-vault-red/10">
                         <p className="text-[10px] uppercase tracking-[0.12em] text-vault-red font-semibold">Next Step</p>
                         <p className="mt-1 text-sm leading-relaxed text-vault-text-light sm:text-base">{appraisal.result.nextSteps}</p>
                       </div>
@@ -1215,9 +1312,9 @@ export default function ChatWidget() {
                   </TabsContent>
 
                   <TabsContent value="notes">
-                    <div className="rounded-xl border border-vault-border bg-vault-surface/55 p-4">
+                    <div className="p-4 border rounded-xl border-vault-border bg-vault-surface/55">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-vault-gold">Appraisal Notes</p>
-                      <p className="whitespace-pre-wrap text-sm leading-7 text-vault-text-light/95 sm:text-base">
+                      <p className="text-sm leading-7 whitespace-pre-wrap text-vault-text-light/95 sm:text-base">
                         {appraisal.result?.explanation ?? 'No additional notes available.'}
                       </p>
                     </div>
@@ -1228,7 +1325,7 @@ export default function ChatWidget() {
                   AI appraisal estimates are guidance only and all offers are subject to in-store inspection and USA Pawn Holdings discretion.
                 </p>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-2 mt-4 sm:gap-3">
                   <Button
                     variant="outline"
                     className="w-full border-vault-gold/40 bg-vault-surface/75 text-vault-text-light hover:bg-vault-surface-elevated"
@@ -1236,7 +1333,7 @@ export default function ChatWidget() {
                   >
                     Schedule
                   </Button>
-                  <Button className="w-full bg-vault-red text-white hover:bg-vault-red-hover" onClick={resetAppraisalFlow}>
+                  <Button className="w-full text-white bg-vault-red hover:bg-vault-red-hover" onClick={resetAppraisalFlow}>
                     Start New Appraisal
                   </Button>
                 </div>
@@ -1254,7 +1351,6 @@ export default function ChatWidget() {
 
                   <div className="w-full max-w-6xl rounded-2xl bg-vault-black/38 px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.62),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:px-6 md:py-5">
                     <h2
-                      key={heroResponseKey}
                       className={`text-balance font-display font-black drop-shadow-[0_12px_28px_rgba(0,0,0,0.9)] ${
                         isDynamicFormActive ? 'line-clamp-2 whitespace-normal' : 'whitespace-pre-wrap'
                       }`}
@@ -1262,7 +1358,7 @@ export default function ChatWidget() {
                         ...heroTextStyle,
                         opacity: heroVisible ? 1 : 0,
                         paddingTop: '0.06em',
-                        transition: `${heroTextStyle.transition}, opacity 180ms ease`,
+                        transition: `${heroTextStyle.transition}, ${heroOpacityTransition}`,
                       }}
                     >
                       {typedHeroTokens}
@@ -1271,7 +1367,7 @@ export default function ChatWidget() {
                   </div>
                 </div>
 
-                <div className="mt-auto flex w-full flex-col items-center gap-4 pb-3">
+                <div className="flex flex-col items-center w-full gap-4 pb-3 mt-auto">
                   {latestVisualImageUrl && (
                     <motion.div
                       initial={{ opacity: 0, y: 12 }}
@@ -1289,7 +1385,7 @@ export default function ChatWidget() {
                         <img
                           src={latestVisualImageUrl}
                           alt="Inventory result"
-                          className="h-36 w-64 rounded-lg object-cover sm:h-44 sm:w-80"
+                          className="object-cover w-64 rounded-lg h-36 sm:h-44 sm:w-80"
                         />
                       </button>
                     </motion.div>
@@ -1310,7 +1406,7 @@ export default function ChatWidget() {
                   )}
 
                   {!voiceMode && mode === 'general' && inventoryHighlights.length > 0 && (
-                    <div className="w-full max-w-3xl rounded-xl border border-vault-gold/25 bg-vault-black/45 px-4 py-3 text-left backdrop-blur-sm">
+                    <div className="w-full max-w-3xl px-4 py-3 text-left border rounded-xl border-vault-gold/25 bg-vault-black/45 backdrop-blur-sm">
                       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-vault-gold/90">
                         Top Matches
                       </p>
@@ -1326,9 +1422,9 @@ export default function ChatWidget() {
 
                   {isStreaming && (
                     <div className="flex items-center gap-2 rounded-full border border-vault-gold/35 bg-vault-black/45 px-4 py-2 text-xs text-vault-text-light backdrop-blur-sm shadow-[0_0_35px_rgba(201,168,76,0.22)]">
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '0ms' }} />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '150ms' }} />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-vault-gold" style={{ animationDelay: '300ms' }} />
+                      <span className="w-2 h-2 rounded-full animate-bounce bg-vault-gold" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 rounded-full animate-bounce bg-vault-gold" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 rounded-full animate-bounce bg-vault-gold" style={{ animationDelay: '300ms' }} />
                       <span className="ml-1 uppercase tracking-[0.14em]">Agent composing</span>
                     </div>
                   )}
@@ -1351,10 +1447,10 @@ export default function ChatWidget() {
         </div>
 
         {mode === 'appraisal' && !isAppraisalResultView && (
-          <div className="relative z-10 border-t border-vault-border-accent bg-vault-black/65 p-4 backdrop-blur-sm">
+          <div className="relative z-10 p-4 border-t border-vault-border-accent bg-vault-black/65 backdrop-blur-sm">
             {appraisal.step === 1 && (
               <div className="space-y-3">
-                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Item Category</Label>
+                <Label className="text-xs tracking-wide uppercase text-vault-text-muted">Item Category</Label>
                 <Select
                   value={appraisal.category}
                   onValueChange={(value) => setAppraisal((prev) => ({ ...prev, category: value, lastError: '' }))}
@@ -1371,7 +1467,7 @@ export default function ChatWidget() {
                   </SelectContent>
                 </Select>
                 <Button
-                  className="w-full bg-vault-red text-white hover:bg-vault-red-hover"
+                  className="w-full text-white bg-vault-red hover:bg-vault-red-hover"
                   onClick={() => {
                     if (!appraisal.category) {
                       setAppraisal((prev) => ({ ...prev, lastError: 'Please choose a category first.' }));
@@ -1387,7 +1483,7 @@ export default function ChatWidget() {
 
             {appraisal.step === 2 && (
               <div className="space-y-3">
-                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Description</Label>
+                <Label className="text-xs tracking-wide uppercase text-vault-text-muted">Description</Label>
                 <Textarea
                   value={appraisal.description}
                   onChange={(event) => setAppraisal((prev) => ({ ...prev, description: event.target.value, lastError: '' }))}
@@ -1398,7 +1494,7 @@ export default function ChatWidget() {
                   <Button variant="outline" className="border-vault-border text-vault-text-light" onClick={() => moveAppraisalStep(1)}>
                     Back
                   </Button>
-                  <Button className="bg-vault-red text-white hover:bg-vault-red-hover" onClick={() => moveAppraisalStep(3)}>
+                  <Button className="text-white bg-vault-red hover:bg-vault-red-hover" onClick={() => moveAppraisalStep(3)}>
                     Continue
                   </Button>
                 </div>
@@ -1407,7 +1503,7 @@ export default function ChatWidget() {
 
             {appraisal.step === 3 && (
               <div className="space-y-3">
-                <Label className="text-xs uppercase tracking-wide text-vault-text-muted">Upload Photos (up to 6)</Label>
+                <Label className="text-xs tracking-wide uppercase text-vault-text-muted">Upload Photos (up to 6)</Label>
                 <input
                   ref={appraisalImageInputRef}
                   type="file"
@@ -1429,8 +1525,8 @@ export default function ChatWidget() {
                 {appraisal.photos.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
                     {appraisal.photos.map((photo, index) => (
-                      <div key={photo.id} className="relative rounded-md border border-vault-border bg-vault-surface p-1">
-                        <img src={photo.preview} alt={photo.label} className="h-20 w-full rounded object-cover" />
+                      <div key={photo.id} className="relative p-1 border rounded-md border-vault-border bg-vault-surface">
+                        <img src={photo.preview} alt={photo.label} className="object-cover w-full h-20 rounded" />
                         <button
                           type="button"
                           className="absolute right-1 top-1 rounded bg-vault-black/70 px-1.5 text-xs text-white"
@@ -1453,7 +1549,7 @@ export default function ChatWidget() {
                     Back
                   </Button>
                   <Button
-                    className="bg-vault-red text-white hover:bg-vault-red-hover"
+                    className="text-white bg-vault-red hover:bg-vault-red-hover"
                     onClick={() => {
                       if (appraisal.photos.length === 0) {
                         setAppraisal((prev) => ({ ...prev, lastError: 'Upload at least one photo to continue.' }));
@@ -1470,7 +1566,7 @@ export default function ChatWidget() {
 
             {appraisal.step === 4 && (
               <div className="space-y-3 text-sm">
-                <div className="rounded-lg border border-vault-border bg-vault-surface p-3">
+                <div className="p-3 border rounded-lg border-vault-border bg-vault-surface">
                   <p><span className="text-vault-text-muted">Category:</span> {appraisal.category}</p>
                   <p><span className="text-vault-text-muted">Photos:</span> {appraisal.photos.length}</p>
                   <p className="mt-1 line-clamp-3 text-vault-text-muted">
@@ -1482,7 +1578,7 @@ export default function ChatWidget() {
                     Back
                   </Button>
                   <Button
-                    className="bg-vault-red text-white hover:bg-vault-red-hover"
+                    className="text-white bg-vault-red hover:bg-vault-red-hover"
                     disabled={appraisal.submitting}
                     onClick={submitGuidedAppraisal}
                   >
@@ -1510,7 +1606,7 @@ export default function ChatWidget() {
         )}
 
         {showQuickReplies && !voiceMode && (
-          <div className="relative z-10 flex flex-wrap gap-2 border-t border-vault-border bg-vault-surface/70 px-4 py-2 backdrop-blur-sm">
+          <div className="relative z-10 flex flex-wrap gap-2 px-4 py-2 border-t border-vault-border bg-vault-surface/70 backdrop-blur-sm">
             {QUICK_REPLIES[mode].map((reply) => (
               <Button
                 key={reply}
@@ -1539,7 +1635,7 @@ export default function ChatWidget() {
               event.preventDefault();
               sendChatMessage(input);
             }}
-            className="relative z-10 flex items-end gap-2 border-t border-vault-border-accent bg-vault-surface-elevated/85 p-3 backdrop-blur-sm"
+            className="relative z-10 flex items-end gap-2 p-3 border-t border-vault-border-accent bg-vault-surface-elevated/85 backdrop-blur-sm"
           >
             <input
               ref={quickImageInputRef}
@@ -1552,12 +1648,12 @@ export default function ChatWidget() {
               type="button"
               variant="ghost"
               size="icon"
-              className="h-10 w-10 rounded-lg bg-vault-surface text-vault-text-light hover:bg-vault-red/20"
+              className="w-10 h-10 rounded-lg bg-vault-surface text-vault-text-light hover:bg-vault-red/20"
               onClick={() => quickImageInputRef.current?.click()}
               disabled={isStreaming}
               aria-label="Upload image"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </Button>
@@ -1575,9 +1671,9 @@ export default function ChatWidget() {
               type="submit"
               size="icon"
               disabled={isStreaming || !input.trim()}
-              className="h-10 w-10 rounded-lg bg-vault-red text-white hover:bg-vault-red-hover"
+              className="w-10 h-10 text-white rounded-lg bg-vault-red hover:bg-vault-red-hover"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
             </Button>

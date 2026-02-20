@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { BentoGrid, BentoGridItem } from '@/components/ui/bento-grid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -195,6 +196,7 @@ function formatDateTime(value?: string): string {
    Dashboard Page
    ------------------------------------------------------------------ */
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [staffLog, setStaffLog] = useState<StaffEntry[]>([]);
   const [complianceAlerts, setComplianceAlerts] = useState<ComplianceAlert[]>([]);
@@ -321,6 +323,21 @@ export default function DashboardPage() {
   }, [fetchDashboardData]);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'leads' | 'conversations' | 'agents' | 'inventory' | 'staff' | 'data-management'>('overview');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (
+      tab === 'overview'
+      || tab === 'leads'
+      || tab === 'conversations'
+      || tab === 'agents'
+      || tab === 'inventory'
+      || tab === 'staff'
+      || tab === 'data-management'
+    ) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const selectedLeadSource = String(selectedLead?.source ?? selectedLead?.source_channel ?? 'web');
   const selectedLeadMethod = String(selectedLead?.contact_method ?? 'web');
   const selectedLeadAppointmentTime =
